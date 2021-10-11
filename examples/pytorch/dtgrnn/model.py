@@ -242,6 +242,6 @@ class GraphRNN(nn.Module):
         start = time.time()
         hidden = self.encode(g, inputs, device)
         outputs = self.decode(g, teacher_states, hidden, batch_cnt, device)
-        end_time = time.time()
+        end = time.time()
         print("GraphRNN forward time:", end-start)
         return outputs
