@@ -4,6 +4,7 @@ import numpy as np
 import torch
 import torch.nn as nn
 from torch.utils.data import DataLoader
+
 import dgl
 from model import GraphRNN
 from dcrnn import DiffConv
@@ -14,6 +15,8 @@ from dataloading import METR_LAGraphDataset, METR_LATrainDataset,\
     PEMS_BAYValidDataset, PEMS_BAYTestDataset
 from utils import NormalizationLayer, masked_mae_loss, get_learning_rate
 
+import time
+
 batch_cnt = [0]
 
 
@@ -23,6 +26,7 @@ def train(model, graph, dataloader, optimizer, scheduler, normalizer, loss_fn, d
     model.train()
     batch_size = args.batch_size
     for i, (x, y) in enumerate(dataloader):
+        start = time.time()
         optimizer.zero_grad()
         # Padding: Since the diffusion graph is precmputed we need to pad the batch so that
         # each batch have same batch size
@@ -61,7 +65,8 @@ def train(model, graph, dataloader, optimizer, scheduler, normalizer, loss_fn, d
             scheduler.step()
         total_loss.append(float(loss))
         batch_cnt[0] += 1
-        print("Batch: ", i)
+        end = time.time()
+        print("Batch: ", i, "-", end-start)
     return np.mean(total_loss)
 
 

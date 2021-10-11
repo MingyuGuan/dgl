@@ -68,7 +68,7 @@ class GraphGRUCell(nn.Module):
         new_h = u*h + (1-u)*c
         end = time.time()
         # print("Time for new_h:", end-temp_start)
-        print(end-start)
+        # print(end-start)
         return new_h
 
 
