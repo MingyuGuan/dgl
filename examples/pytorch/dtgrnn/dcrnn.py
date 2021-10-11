@@ -5,7 +5,7 @@ import torch.nn as nn
 import dgl
 from dgl.base import DGLError
 import dgl.function as fn
-
+import time
 
 class DiffConv(nn.Module):
     '''DiffConv is the implementation of diffusion convolution from paper DCRNN
@@ -86,6 +86,7 @@ class DiffConv(nn.Module):
         return ret_graph
 
     def forward(self, g, x):
+        start = time.time()
         feat_list = []
         if self.dir == 'both':
             graph_list = self.in_graph_list+self.out_graph_list
@@ -106,4 +107,6 @@ class DiffConv(nn.Module):
         feat_list = torch.cat(feat_list).view(
             len(feat_list), -1, self.out_feats)
         ret = (self.merger*feat_list.permute(1, 2, 0)).permute(2, 0, 1).mean(0)
+        end = time.time()
+        print("dcrnn forward time:", end-start)
         return ret
