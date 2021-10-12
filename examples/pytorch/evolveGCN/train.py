@@ -8,7 +8,7 @@ from dataset import EllipticDataset
 from model import EvolveGCNO, EvolveGCNH
 from utils import Measure
 
-
+import time
 def train(args, device):
     elliptic_dataset = EllipticDataset(raw_dir=args.raw_dir,
                                        processed_dir=args.processed_dir,
@@ -54,6 +54,8 @@ def train(args, device):
 
     test_res_f1 = 0
     for epoch in range(args.num_epochs):
+        print("--- Epoch", epoch, "---")
+        start = time.time()
         model.train()
         for i in range(time_window_size, train_max_index + 1):
             g_list = cached_subgraph[i - time_window_size:i + 1]
@@ -129,6 +131,8 @@ def train(args, device):
 
             print("  Test | Epoch {} | class {} | precision:{:.4f} | recall: {:.4f} | f1: {:.4f}"
                   .format(epoch, args.eval_class_id, cl_precision, cl_recall, cl_f1))
+        end = time.time()
+        print("Epoch", epoch, "finished:", end-start)
 
     print("Best test f1 is {}, in Epoch {}"
           .format(test_measure.target_best_f1, test_measure.target_best_f1_epoch))
