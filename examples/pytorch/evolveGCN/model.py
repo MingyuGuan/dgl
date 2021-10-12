@@ -4,6 +4,7 @@ from torch.nn import init
 from dgl.nn.pytorch import GraphConv
 from torch.nn.parameter import Parameter
 
+import time
 
 class MatGRUCell(torch.nn.Module):
     """
@@ -129,11 +130,27 @@ class EvolveGCNH(nn.Module):
         for g in g_list:
             feature_list.append(g.ndata['feat'])
         for i in range(self.num_layers):
+            print("--- Layer", i, "---")
+            i_start = time.time()
             W = self.gcn_weights_list[i]
             for j, g in enumerate(g_list):
+                print("--- Graph", j, "---")
+                j_init_start = time.time()
+                j_start = time.time()
                 X_tilde = self.pooling_layers[i](feature_list[j])
+                j_end = time.time()
+                print("Pooling:", j_end-j_start)
+                j_start = time.time()
                 W = self.recurrent_layers[i](W, X_tilde)
+                j_end = time.time()
+                print("GRU:", j_end-j_start)
+                j_start = time.time()
                 feature_list[j] = self.gnn_convs[i](g, feature_list[j], weight=W)
+                j_end = time.time()
+                print("GCN:", j_end-j_start)
+                print("Graph", j, "finished:", j_end-j_init_start)
+            i_end = time.time()
+            print("Layer", i, "finished:", i_end-i_start)
         return self.mlp(feature_list[-1])
 
 
@@ -178,6 +195,8 @@ class EvolveGCNO(nn.Module):
         for g in g_list:
             feature_list.append(g.ndata['feat'])
         for i in range(self.num_layers):
+            print("--- Layer", i, "---")
+            i_start = time.time()
             W = self.gcn_weights_list[i]
             for j, g in enumerate(g_list):
                 # Attention: I try to use the below code to set gcn.weight(similar to pyG_temporal),
@@ -190,6 +209,17 @@ class EvolveGCNO(nn.Module):
                 # ====================================================
 
                 # Remove the following line of code, it will become `GCN`.
+                print("--- Graph", j, "---")
+                j_init_start = time.time()
+                j_start = time.time()
                 W = self.recurrent_layers[i](W)
+                j_end = time.time()
+                print("LSTM:", j_end-j_start)
+                j_start = time.time()
                 feature_list[j] = self.gnn_convs[i](g, feature_list[j], weight=W)
+                j_end = time.time()
+                print("GCN:", j_end-j_start)
+                print("Graph", j, "finished:", j_end-j_init_start)
+            i_end = time.time()
+            print("Layer", i, "finished:", i_end-i_start)
         return self.mlp(feature_list[-1])
