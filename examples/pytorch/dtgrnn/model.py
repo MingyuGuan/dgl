@@ -40,35 +40,35 @@ class GraphGRUCell(nn.Module):
         self.c_bias = nn.Parameter(torch.rand(out_feats))
 
     def forward(self, g, x, h):
-        print("----------")
-        start = time.time()
+        # print("----------")
+        # start = time.time()
         r = torch.sigmoid(self.r_net(
             g, torch.cat([x, h], dim=1)) + self.r_bias)
-        temp_end = time.time()
-        print("Time for r:", temp_end-start)
+        # temp_end = time.time()
+        # print("Time for r:", temp_end-start)
 
-        temp_start = time.time()
+        # temp_start = time.time()
         u = torch.sigmoid(self.u_net(
             g, torch.cat([x, h], dim=1)) + self.u_bias)
-        temp_end = time.time()
-        print("Time for u:", temp_end-temp_start)
+        # temp_end = time.time()
+        # print("Time for u:", temp_end-temp_start)
 
-        temp_start = time.time()
+        # temp_start = time.time()
         h_ = r*h
-        temp_end = time.time()
-        print("Time for h_:", temp_end-temp_start)
+        # temp_end = time.time()
+        # print("Time for h_:", temp_end-temp_start)
 
-        temp_start = time.time()
+        # temp_start = time.time()
         c = torch.sigmoid(self.c_net(
             g, torch.cat([x, h_], dim=1)) + self.c_bias)
-        temp_end = time.time()
-        print("Time for c:", temp_end-temp_start)
+        # temp_end = time.time()
+        # print("Time for c:", temp_end-temp_start)
 
-        temp_start = time.time()
+        # temp_start = time.time()
         new_h = u*h + (1-u)*c
-        end = time.time()
-        print("Time for new_h:", end-temp_start)
-        print(end-start)
+        # end = time.time()
+        # print("Time for new_h:", end-temp_start)
+        # print(end-start)
         return new_h
 
 
