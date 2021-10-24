@@ -111,7 +111,7 @@ class DiffConv(nn.Module):
         ret = (self.merger*feat_list.permute(1, 2, 0)).permute(2, 0, 1).mean(0)
         return ret
 
-class DiffConv_Agg(nn.Module):
+class DiffConvAgg(nn.Module):
     def __init__(self, in_feats, out_feats, k, in_graph_list, out_graph_list, dir='both'):
         super(DiffConv, self).__init__()
         self.in_feats = in_feats
