@@ -81,7 +81,7 @@ class StackedEncoder(nn.Module):
         message passing network for graph computation
     '''
 
-    def __init__(self, in_feats, out_feats, num_layers, net, aggregate):
+    def __init__(self, in_feats, out_feats, num_layers, net, aggregate, agg_net):
         super(StackedEncoder, self).__init__()
         self.in_feats = in_feats
         self.out_feats = out_feats
@@ -127,7 +127,7 @@ class StackedDecoder(nn.Module):
         message passing network for graph computation
     '''
 
-    def __init__(self, in_feats, hid_feats, out_feats, num_layers, net, aggregate):
+    def __init__(self, in_feats, hid_feats, out_feats, num_layers, net, aggregate, agg_net):
         super(StackedDecoder, self).__init__()
         self.in_feats = in_feats
         self.hid_feats = hid_feats
@@ -138,10 +138,10 @@ class StackedDecoder(nn.Module):
         self.layers = nn.ModuleList()
         if self.num_layers <= 0:
             raise DGLError("Layer Number must be greater than 0!")
-        self.layers.append(GraphGRUCell(self.in_feats, self.hid_feats, net, aggregate))
+        self.layers.append(GraphGRUCell(self.in_feats, self.hid_feats, net, aggregate, agg_net))
         for _ in range(self.num_layers-1):
             self.layers.append(GraphGRUCell(
-                self.hid_feats, self.hid_feats, net, aggregate))
+                self.hid_feats, self.hid_feats, net, aggregate,agg_net))
 
     def forward(self, g, x, hidden_states):
         hiddens = []
@@ -184,7 +184,8 @@ class GraphRNN(nn.Module):
                  num_layers,
                  net,
                  decay_steps,
-                 aggregate):
+                 aggregate，
+                 agg_net):
         super(GraphRNN, self).__init__()
         self.in_feats = in_feats
         self.out_feats = out_feats
@@ -197,14 +198,16 @@ class GraphRNN(nn.Module):
                                       self.out_feats,
                                       self.num_layers,
                                       self.net,
-                                      aggregate)
+                                      aggregate,
+                                      agg_net)
 
         self.decoder = StackedDecoder(self.in_feats,
                                       self.out_feats,
                                       self.in_feats,
                                       self.num_layers,
                                       self.net,
-                                      aggregate)
+                                      aggregate,
+                                      agg_net)
     # Threshold For Teacher Forcing
 
     def compute_thresh(self, batch_cnt):
