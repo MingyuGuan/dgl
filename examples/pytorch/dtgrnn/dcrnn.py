@@ -113,7 +113,7 @@ class DiffConv(nn.Module):
 
 class DiffConvAgg(nn.Module):
     def __init__(self, in_feats, out_feats, k, in_graph_list, out_graph_list, dir='both'):
-        super(DiffConv, self).__init__()
+        super(DiffConvAgg, self).__init__()
         self.in_feats = in_feats
         self.out_feats = out_feats
         self.k = k
