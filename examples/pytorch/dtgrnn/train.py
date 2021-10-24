@@ -26,7 +26,6 @@ def train(model, graph, dataloader, optimizer, scheduler, normalizer, loss_fn, d
     model.train()
     batch_size = args.batch_size
     for i, (x, y) in enumerate(dataloader):
-        start = time.time()
         optimizer.zero_grad()
         # Padding: Since the diffusion graph is precmputed we need to pad the batch so that
         # each batch have same batch size
@@ -69,8 +68,6 @@ def train(model, graph, dataloader, optimizer, scheduler, normalizer, loss_fn, d
             scheduler.step()
         total_loss.append(float(loss))
         batch_cnt[0] += 1
-        end = time.time()
-        print("Batch: ", i, "-", end-start)
     return np.mean(total_loss)
 
 
@@ -197,13 +194,16 @@ if __name__ == "__main__":
     loss_fn = masked_mae_loss
 
     for e in range(args.epochs):
+        start = time.time()
         train_loss = train(dcrnn, g, train_loader, optimizer, scheduler,
                            normalizer, loss_fn, device, args)
         valid_loss = eval(dcrnn, g, valid_loader,
                           normalizer, loss_fn, device, args)
         test_loss = eval(dcrnn, g, test_loader,
                          normalizer, loss_fn, device, args)
-        print("Epoch: {} Train Loss: {} Valid Loss: {} Test Loss: {}".format(e,
+        end = time.time()
+        print("Epoch: {} Time: {} Train Loss: {} Valid Loss: {} Test Loss: {}".format(e,
+                                                                             end-start,
                                                                              train_loss,
                                                                              valid_loss,
                                                                              test_loss))
