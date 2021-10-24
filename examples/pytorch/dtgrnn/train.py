@@ -8,6 +8,7 @@ from torch.utils.data import DataLoader
 import dgl
 from model import GraphRNN
 from dcrnn import DiffConv
+from dcrnn import DiffConvAgg
 from gaan import GatedGAT
 from dataloading import METR_LAGraphDataset, METR_LATrainDataset,\
     METR_LATestDataset, METR_LAValidDataset,\
