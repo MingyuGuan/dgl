@@ -91,10 +91,10 @@ class StackedEncoder(nn.Module):
         if self.num_layers <= 0:
             raise DGLError("Layer Number must be greater than 0! ")
         self.layers.append(GraphGRUCell(
-            self.in_feats, self.out_feats, self.net, aggregate))
+            self.in_feats, self.out_feats, self.net, aggregate, agg_net))
         for _ in range(self.num_layers-1):
             self.layers.append(GraphGRUCell(
-                self.out_feats, self.out_feats, self.net, aggregate))
+                self.out_feats, self.out_feats, self.net, aggregate, agg_net))
 
     # hidden_states should be a list which for different layer
     def forward(self, g, x, hidden_states):
