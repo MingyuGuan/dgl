@@ -7,8 +7,6 @@ import dgl.nn as dglnn
 from dgl.base import DGLError
 import dgl.function as fn
 from dgl.nn.functional import edge_softmax
-import time
-
 
 class GraphGRUCell(nn.Module):
     '''Graph GRU unit which can use any message passing
@@ -25,50 +23,42 @@ class GraphGRUCell(nn.Module):
         message passing network
     '''
 
-    def __init__(self, in_feats, out_feats, net):
+    def __init__(self, in_feats, out_feats, net, aggregate, agg_net):
         super(GraphGRUCell, self).__init__()
         self.in_feats = in_feats
         self.out_feats = out_feats
         self.dir = dir
+
+        # add fc and compute feats for dcrnn
+        self.aggregate = aggregate
+        self.agg_net = agg_net(in_feats+out_feats, out_feats)
+
         # net can be any GNN model
-        self.r_net = net(in_feats+out_feats, out_feats)
-        self.u_net = net(in_feats+out_feats, out_feats)
-        self.c_net = net(in_feats+out_feats, out_feats)
-        # Manually add bias Bias
+        self.r_net = net(in_feats+out_feats, out_feats, self.aggregate)
+        self.u_net = net(in_feats+out_feats, out_feats, self.aggregate)
+        self.c_net = net(in_feats+out_feats, out_feats, False)
+        # Manually add bias
         self.r_bias = nn.Parameter(torch.rand(out_feats))
         self.u_bias = nn.Parameter(torch.rand(out_feats))
         self.c_bias = nn.Parameter(torch.rand(out_feats))
 
     def forward(self, g, x, h):
-        # print("----------")
-        # start = time.time()
-        r = torch.sigmoid(self.r_net(
-            g, torch.cat([x, h], dim=1)) + self.r_bias)
-        # temp_end = time.time()
-        # print("Time for r:", temp_end-start)
-
-        # temp_start = time.time()
-        u = torch.sigmoid(self.u_net(
-            g, torch.cat([x, h], dim=1)) + self.u_bias)
-        # temp_end = time.time()
-        # print("Time for u:", temp_end-temp_start)
-
-        # temp_start = time.time()
+        feats = None
+        if self.aggregate:
+            feats = self.agg_net(g, torch.cat([x, h], dim=1))
+            r = torch.sigmoid(self.r_net(
+                g, None, feats) + self.r_bias)
+            u = torch.sigmoid(self.u_net(
+                g, None, feats) + self.u_bias)
+        else: 
+            r = torch.sigmoid(self.r_net(
+                g, torch.cat([x, h], dim=1)) + self.r_bias)
+            u = torch.sigmoid(self.u_net(
+                g, torch.cat([x, h], dim=1)) + self.u_bias)
         h_ = r*h
-        # temp_end = time.time()
-        # print("Time for h_:", temp_end-temp_start)
-
-        # temp_start = time.time()
         c = torch.sigmoid(self.c_net(
             g, torch.cat([x, h_], dim=1)) + self.c_bias)
-        # temp_end = time.time()
-        # print("Time for c:", temp_end-temp_start)
-
-        # temp_start = time.time()
         new_h = u*h + (1-u)*c
-        # end = time.time()
-        # print("Time for new_h:", end-temp_start)
-        # print(end-start)
         return new_h
 
 
@@ -91,7 +81,7 @@ class StackedEncoder(nn.Module):
         message passing network for graph computation
     '''
 
-    def __init__(self, in_feats, out_feats, num_layers, net):
+    def __init__(self, in_feats, out_feats, num_layers, net, aggregate):
         super(StackedEncoder, self).__init__()
         self.in_feats = in_feats
         self.out_feats = out_feats
@@ -101,10 +91,10 @@ class StackedEncoder(nn.Module):
         if self.num_layers <= 0:
             raise DGLError("Layer Number must be greater than 0! ")
         self.layers.append(GraphGRUCell(
-            self.in_feats, self.out_feats, self.net))
+            self.in_feats, self.out_feats, self.net, aggregate))
         for _ in range(self.num_layers-1):
             self.layers.append(GraphGRUCell(
-                self.out_feats, self.out_feats, self.net))
+                self.out_feats, self.out_feats, self.net, aggregate))
 
     # hidden_states should be a list which for different layer
     def forward(self, g, x, hidden_states):
@@ -137,7 +127,7 @@ class StackedDecoder(nn.Module):
         message passing network for graph computation
     '''
 
-    def __init__(self, in_feats, hid_feats, out_feats, num_layers, net):
+    def __init__(self, in_feats, hid_feats, out_feats, num_layers, net, aggregate):
         super(StackedDecoder, self).__init__()
         self.in_feats = in_feats
         self.hid_feats = hid_feats
@@ -148,10 +138,10 @@ class StackedDecoder(nn.Module):
         self.layers = nn.ModuleList()
         if self.num_layers <= 0:
             raise DGLError("Layer Number must be greater than 0!")
-        self.layers.append(GraphGRUCell(self.in_feats, self.hid_feats, net))
+        self.layers.append(GraphGRUCell(self.in_feats, self.hid_feats, net, aggregate))
         for _ in range(self.num_layers-1):
             self.layers.append(GraphGRUCell(
-                self.hid_feats, self.hid_feats, net))
+                self.hid_feats, self.hid_feats, net, aggregate))
 
     def forward(self, g, x, hidden_states):
         hiddens = []
@@ -193,7 +183,8 @@ class GraphRNN(nn.Module):
                  seq_len,
                  num_layers,
                  net,
-                 decay_steps):
+                 decay_steps,
+                 aggregate):
         super(GraphRNN, self).__init__()
         self.in_feats = in_feats
         self.out_feats = out_feats
@@ -205,13 +196,15 @@ class GraphRNN(nn.Module):
         self.encoder = StackedEncoder(self.in_feats,
                                       self.out_feats,
                                       self.num_layers,
-                                      self.net)
+                                      self.net,
+                                      aggregate)
 
         self.decoder = StackedDecoder(self.in_feats,
                                       self.out_feats,
                                       self.in_feats,
                                       self.num_layers,
-                                      self.net)
+                                      self.net,
+                                      aggregate)
     # Threshold For Teacher Forcing
 
     def compute_thresh(self, batch_cnt):
@@ -239,9 +232,6 @@ class GraphRNN(nn.Module):
         return outputs
 
     def forward(self, g, inputs, teacher_states, batch_cnt, device):
-        # start = time.time()
         hidden = self.encode(g, inputs, device)
         outputs = self.decode(g, teacher_states, hidden, batch_cnt, device)
-        # end = time.time()
-        # print("GraphRNN forward time:", end-start)
         return outputs

@@ -44,14 +44,18 @@ def train(model, graph, dataloader, optimizer, scheduler, normalizer, loss_fn, d
             x = x_buff
             y = y_buff
         # Permute the dimension for shaping
+        # before: [batch_size, seq_len, num_nodes, in_feats]
         x = x.permute(1, 0, 2, 3)
         y = y.permute(1, 0, 2, 3)
+        # after: [seq_len, batch_size, num_nodes, in_feats]
 
         x_norm = normalizer.normalize(x).reshape(
             x.shape[0], -1, x.shape[3]).float().to(device)
         y_norm = normalizer.normalize(y).reshape(
             x.shape[0], -1, x.shape[3]).float().to(device)
         y = y.reshape(y.shape[0], -1, y.shape[3]).float().to(device)
+
+        # after: [seq_len, batch_size * num_nodes, in_feats]
 
         batch_graph = dgl.batch([graph]*batch_size)
         output = model(batch_graph, x_norm, y_norm, batch_cnt[0], device)
@@ -136,6 +140,9 @@ if __name__ == "__main__":
                         help="Number of epoches for training")
     parser.add_argument('--max_grad_norm', type=float, default=5.0,
                         help="Maximum gradient norm for update parameters")
+
+    parser.add_argument('--aggregate', action='store_true')
+
     args = parser.parse_args()
     # Load the datasets
     if args.dataset == 'LA':
@@ -170,12 +177,19 @@ if __name__ == "__main__":
     elif args.model == 'gaan':
         net = partial(GatedGAT, map_feats=64, num_heads=args.num_heads)
 
+    agg_net = None
+    if args.aggregate:
+        agg_net = partial(DiffConvAgg, k=args.diffsteps,
+                      in_graph_list=in_gs, out_graph_list=out_gs)
+
     dcrnn = GraphRNN(in_feats=2,
                      out_feats=64,
                      seq_len=12,
                      num_layers=2,
                      net=net,
-                     decay_steps=args.decay_steps).to(device)
+                     decay_steps=args.decay_steps,
+                     aggregate=args.aggregate,
+                     agg_net=agg_net).to(device)
 
     optimizer = torch.optim.Adam(dcrnn.parameters(), lr=args.lr)
     scheduler = torch.optim.lr_scheduler.ExponentialLR(optimizer, gamma=0.99)

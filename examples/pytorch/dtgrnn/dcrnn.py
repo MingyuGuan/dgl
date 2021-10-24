@@ -27,20 +27,22 @@ class DiffConv(nn.Module):
         From paper default both direction
     '''
 
-    def __init__(self, in_feats, out_feats, k, in_graph_list, out_graph_list, dir='both'):
+    def __init__(self, in_feats, out_feats, aggregate, k, in_graph_list, out_graph_list, dir='both'):
         super(DiffConv, self).__init__()
-        self.in_feats = in_feats
-        self.out_feats = out_feats
+        self.aggregate = aggregate
         self.k = k
         self.dir = dir
         self.num_graphs = self.k-1 if self.dir == 'both' else 2*self.k-2
-        self.project_fcs = nn.ModuleList()
-        for i in range(self.num_graphs):
-            self.project_fcs.append(
-                nn.Linear(self.in_feats, self.out_feats, bias=False))
         self.merger = nn.Parameter(torch.randn(self.num_graphs+1))
-        self.in_graph_list = in_graph_list
-        self.out_graph_list = out_graph_list
+        if not self.aggregate:
+            self.in_feats = in_feats
+            self.out_feats = out_feats
+            self.project_fcs = nn.ModuleList()
+            for i in range(self.num_graphs):
+                self.project_fcs.append(
+                    nn.Linear(self.in_feats, self.out_feats, bias=False))
+            self.in_graph_list = in_graph_list
+            self.out_graph_list = out_graph_list
 
     @staticmethod
     def attach_graph(g, k):
@@ -85,8 +87,47 @@ class DiffConv(nn.Module):
             device)
         return ret_graph
 
+    def forward(self, g, x, feat_list):
+        if not self.aggregate:
+            feat_list = []
+            if self.dir == 'both':
+                graph_list = self.in_graph_list+self.out_graph_list
+            elif self.dir == 'in':
+                graph_list = self.in_graph_list
+            elif self.dir == 'out':
+                graph_list = self.out_graph_list
+
+            for i in range(self.num_graphs):
+                g = graph_list[i]
+                with g.local_scope():
+                    g.ndata['n'] = self.project_fcs[i](x)
+                    g.update_all(fn.u_mul_e('n', 'weight', 'e'),
+                                 fn.sum('e', 'feat'))
+                    feat_list.append(g.ndata['feat'])
+                    # Each feat has shape [N,q_feats]
+            feat_list.append(self.project_fcs[-1](x))
+            feat_list = torch.cat(feat_list).view(
+                len(feat_list), -1, self.out_feats)
+        ret = (self.merger*feat_list.permute(1, 2, 0)).permute(2, 0, 1).mean(0)
+        return ret
+
+class DiffConv_Agg(nn.Module):
+    def __init__(self, in_feats, out_feats, k, in_graph_list, out_graph_list, dir='both'):
+        super(DiffConv, self).__init__()
+        self.in_feats = in_feats
+        self.out_feats = out_feats
+        self.k = k
+        self.dir = dir
+        self.num_graphs = self.k-1 if self.dir == 'both' else 2*self.k-2
+        self.project_fcs = nn.ModuleList()
+        for i in range(self.num_graphs):
+            self.project_fcs.append(
+                nn.Linear(self.in_feats, self.out_feats, bias=False))
+        # self.merger = nn.Parameter(torch.randn(self.num_graphs+1))
+        self.in_graph_list = in_graph_list
+        self.out_graph_list = out_graph_list
+
     def forward(self, g, x):
-        start = time.time()
         feat_list = []
         if self.dir == 'both':
             graph_list = self.in_graph_list+self.out_graph_list
@@ -106,7 +147,4 @@ class DiffConv(nn.Module):
         feat_list.append(self.project_fcs[-1](x))
         feat_list = torch.cat(feat_list).view(
             len(feat_list), -1, self.out_feats)
-        ret = (self.merger*feat_list.permute(1, 2, 0)).permute(2, 0, 1).mean(0)
-        end = time.time()
-        print("dcrnn forward time:", end-start)
-        return ret
+        return feat_list
