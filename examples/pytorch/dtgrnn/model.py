@@ -31,7 +31,8 @@ class GraphGRUCell(nn.Module):
 
         # add fc and compute feats for dcrnn
         self.aggregate = aggregate
-        self.agg_net = agg_net(in_feats+out_feats, out_feats)
+        if self.aggregate
+            self.agg_net = agg_net(in_feats+out_feats, out_feats)
 
         # net can be any GNN model
         self.r_net = net(in_feats+out_feats, out_feats, self.aggregate)
