@@ -87,7 +87,7 @@ class DiffConv(nn.Module):
             device)
         return ret_graph
 
-    def forward(self, g, x, feat_list):
+    def forward(self, g, x, feat_list=None):
         if not self.aggregate:
             feat_list = []
             if self.dir == 'both':
