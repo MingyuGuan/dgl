@@ -184,7 +184,7 @@ class GraphRNN(nn.Module):
                  num_layers,
                  net,
                  decay_steps,
-                 aggregate，
+                 aggregate,
                  agg_net):
         super(GraphRNN, self).__init__()
         self.in_feats = in_feats
