@@ -86,8 +86,8 @@ class StackedEncoder(nn.Module):
     # hidden_states should be a list which for different layer
     def forward(self, g, x, hidden_states):
         if self.aggregate_x:
-            x_split = torch.tensor_split(x, self.seq_len, dim=0)
-            print("Size of x_split", x_split.size())
+            x_split = torch.split(x, self.seq_len)
+            print("Size of x_split", len(x_split))
             x_cat = torch.cat(x_split, dim=-1)
             print("Size of x_cat", x_cat.size())
 
