@@ -86,9 +86,11 @@ class StackedEncoder(nn.Module):
     def forward(self, g, x, hidden_states):
         for i in range(self.seq_len):
             input_ = x[i]
+            hiddens = []
             for j, layer in enumerate(self.layers):
                 input_ = layer(g, input_, hidden_states[j])
-                hidden_states[j] = input_
+                hiddens.append(input_)
+            hidden_states = hiddens
         return x, hidden_states
 
 
