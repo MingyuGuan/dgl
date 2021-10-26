@@ -4,7 +4,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 import dgl.function as fn
 
-class SAGEConv(nn.Module):
+class SageConv(nn.Module):
     """Graph convolution module used by the GraphSAGE model.
 
     Parameters
