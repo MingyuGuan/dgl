@@ -101,10 +101,12 @@ class StackedEncoder(nn.Module):
 
         for i in range(self.seq_len):
             input_ = x[i]
+            pre_comp_input = x_agg[i]
             hiddens = []
             for j, layer in enumerate(self.layers):
-                input_ = layer(g, input_, hidden_states[j], x_agg=x_agg)
+                input_ = layer(g, input_, hidden_states[j], x_agg=pre_comp_input)
                 hiddens.append(input_)
+                pre_comp_input = None
             hidden_states = hiddens
         return x, hidden_states
 
