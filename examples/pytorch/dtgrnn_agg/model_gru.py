@@ -38,11 +38,11 @@ class GraphGRUCell(nn.Module):
         self.c_x_net = net(in_feats, out_feats)
         self.c_h_net = net(out_feats, out_feats)
 
-    def forward(self, g, x, h):
-        r = torch.sigmoid(self.r_x_net(g, x) + self.r_h_net(g, h))
-        u = torch.sigmoid(self.u_x_net(g, x) + self.u_h_net(g, h))
+    def forward(self, g, x, h, x_agg=None):
+        r = torch.sigmoid(self.r_x_net(g, x, x_agg=x_agg) + self.r_h_net(g, h))
+        u = torch.sigmoid(self.u_x_net(g, x, x_agg=x_agg) + self.u_h_net(g, h))
         h_ = r*h
-        c = torch.tanh(self.c_x_net(g, x) + self.c_h_net(g, h))
+        c = torch.tanh(self.c_x_net(g, x, x_agg=x_agg) + self.c_h_net(g, h))
         new_h = u*h + (1-u)*c
         return new_h
 
@@ -85,29 +85,25 @@ class StackedEncoder(nn.Module):
 
     # hidden_states should be a list which for different layer
     def forward(self, g, x, hidden_states):
+        x_agg = None
         if self.aggregate_x:
-            print("Size of x", x.size())
             x_split = torch.split(x, 1)
-            print("Size of x_split", len(x_split))
-            x_agg = torch.squeeze(torch.cat(x_split, dim=-1))
-            print("Size of x_cat", x_agg.size())
+            x_cat = torch.squeeze(torch.cat(x_split, dim=-1))
 
             # message passing
             with g.local_scope():
-                g.ndata['x'] = x_agg
+                g.ndata['x'] = x_cat
                 # update_all is a message passing API.
                 g.update_all(message_func=fn.copy_u('x', 'm'), reduce_func=fn.mean('m', 'x_N'))
                 x_N = g.ndata['x_N']
-                print("Size of x_N", x_N.size())
 
-            x_test = torch.tensor_split(x_N, self.seq_len, dim=-1)
-            print("Size of x_test", len(x_test))
+            x_agg = torch.tensor_split(x_N, self.seq_len, dim=-1)
 
         for i in range(self.seq_len):
             input_ = x[i]
             hiddens = []
             for j, layer in enumerate(self.layers):
-                input_ = layer(g, input_, hidden_states[j])
+                input_ = layer(g, input_, hidden_states[j], x_agg=x_agg)
                 hiddens.append(input_)
             hidden_states = hiddens
         return x, hidden_states
