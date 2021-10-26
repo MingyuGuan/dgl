@@ -141,7 +141,7 @@ if __name__ == "__main__":
     parser.add_argument('--max_grad_norm', type=float, default=5.0,
                         help="Maximum gradient norm for update parameters")
 
-    parser.add_argument('--aggregate-x', action='store_true')
+    parser.add_argument('--agg-seq', action='store_true')
 
     args = parser.parse_args()
     # Load the datasets
@@ -186,7 +186,7 @@ if __name__ == "__main__":
                      num_layers=2,
                      net=net,
                      decay_steps=args.decay_steps,
-                     aggregate_x=args.aggregate_x).to(device)
+                     agg_seq=args.agg_seq).to(device)
 
     optimizer = torch.optim.Adam(gcrn.parameters(), lr=args.lr)
     scheduler = torch.optim.lr_scheduler.ExponentialLR(optimizer, gamma=0.99)

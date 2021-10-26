@@ -38,11 +38,11 @@ class GraphGRUCell(nn.Module):
         self.c_x_net = net(in_feats, out_feats)
         self.c_h_net = net(out_feats, out_feats)
 
-    def forward(self, g, x, h, x_agg=None):
-        r = torch.sigmoid(self.r_x_net(g, x, x_agg=x_agg) + self.r_h_net(g, h))
-        u = torch.sigmoid(self.u_x_net(g, x, x_agg=x_agg) + self.u_h_net(g, h))
+    def forward(self, g, x, h, h_N=None):
+        r = torch.sigmoid(self.r_x_net(g, x, h_N=h_N) + self.r_h_net(g, h))
+        u = torch.sigmoid(self.u_x_net(g, x, h_N=h_N) + self.u_h_net(g, h))
         h_ = r*h
-        c = torch.tanh(self.c_x_net(g, x, x_agg=x_agg) + self.c_h_net(g, h))
+        c = torch.tanh(self.c_x_net(g, x, h_N=h_N) + self.c_h_net(g, h))
         new_h = u*h + (1-u)*c
         return new_h
 
@@ -66,14 +66,14 @@ class StackedEncoder(nn.Module):
         message passing network for graph computation
     '''
 
-    def __init__(self, in_feats, out_feats, num_layers, net, seq_len, aggregate_x):
+    def __init__(self, in_feats, out_feats, num_layers, net, seq_len, agg_seq):
         super(StackedEncoder, self).__init__()
         self.in_feats = in_feats
         self.out_feats = out_feats
         self.num_layers = num_layers
         self.net = net
         self.seq_len = seq_len
-        self.aggregate_x = aggregate_x
+        self.agg_seq = agg_seq
         self.layers = nn.ModuleList()
         if self.num_layers <= 0:
             raise DGLError("Layer Number must be greater than 0! ")
@@ -85,8 +85,8 @@ class StackedEncoder(nn.Module):
 
     # hidden_states should be a list which for different layer
     def forward(self, g, x, hidden_states):
-        x_agg = None
-        if self.aggregate_x:
+        h_Ns = None
+        if self.agg_seq:
             x_split = torch.split(x, 1)
             x_cat = torch.squeeze(torch.cat(x_split, dim=-1))
 
@@ -94,22 +94,22 @@ class StackedEncoder(nn.Module):
             with g.local_scope():
                 g.ndata['x'] = x_cat
                 # update_all is a message passing API.
-                g.update_all(message_func=fn.copy_u('x', 'm'), reduce_func=fn.mean('m', 'x_N'))
-                x_N = g.ndata['x_N']
+                g.update_all(message_func=fn.copy_u('x', 'm'), reduce_func=fn.mean('m', 'h_N'))
+                h_N = g.ndata['h_N']
 
-            x_agg = torch.tensor_split(x_N, self.seq_len, dim=-1)
+            h_Ns = torch.tensor_split(h_N, self.seq_len, dim=-1)
 
         for i in range(self.seq_len):
             input_ = x[i]
-            if self.aggregate_x:
-                pre_comp_input = x_agg[i]
+            if self.agg_seq:
+                h_N = h_Ns[i]
             else:
-                pre_comp_input = None
+                h_N = None
             hiddens = []
             for j, layer in enumerate(self.layers):
-                input_ = layer(g, input_, hidden_states[j], x_agg=pre_comp_input)
+                input_ = layer(g, input_, hidden_states[j], h_N=h_N)
                 hiddens.append(input_)
-                pre_comp_input = None
+                h_N = None
             hidden_states = hiddens
         return x, hidden_states
 
@@ -136,7 +136,7 @@ class StackedDecoder(nn.Module):
         message passing network for graph computation
     '''
 
-    def __init__(self, in_feats, hid_feats, out_feats, num_layers, net, seq_len, aggregate_x):
+    def __init__(self, in_feats, hid_feats, out_feats, num_layers, net, seq_len, agg_seq):
         super(StackedDecoder, self).__init__()
         self.in_feats = in_feats
         self.hid_feats = hid_feats
@@ -145,7 +145,7 @@ class StackedDecoder(nn.Module):
         self.net = net
         self.seq_len = seq_len
         self.out_layer = nn.Linear(self.hid_feats, self.out_feats)
-        self.aggregate_x = aggregate_x
+        self.agg_seq = agg_seq
         self.layers = nn.ModuleList()
         if self.num_layers <= 0:
             raise DGLError("Layer Number must be greater than 0!")
@@ -155,8 +155,8 @@ class StackedDecoder(nn.Module):
                 self.hid_feats, self.hid_feats, net))
 
     def forward(self, g, x, hidden_states):
-        x_agg = None
-        if self.aggregate_x:
+        h_Ns = None
+        if self.agg_seq:
             x_split = torch.split(x, 1)
             x_cat = torch.squeeze(torch.cat(x_split, dim=-1))
 
@@ -164,21 +164,21 @@ class StackedDecoder(nn.Module):
             with g.local_scope():
                 g.ndata['x'] = x_cat
                 # update_all is a message passing API.
-                g.update_all(message_func=fn.copy_u('x', 'm'), reduce_func=fn.mean('m', 'x_N'))
-                x_N = g.ndata['x_N']
+                g.update_all(message_func=fn.copy_u('x', 'm'), reduce_func=fn.mean('m', 'h_N'))
+                h_N = g.ndata['h_N']
 
-            x_agg = torch.tensor_split(x_N, self.seq_len, dim=-1)
+            h_Ns = torch.tensor_split(h_N, self.seq_len, dim=-1)
 
         outputs = []
         for i in range(self.seq_len):
             input_ = x[i]
-            if self.aggregate_x:
-                pre_comp_input = x_agg[i]
+            if self.agg_seq:
+                h_N = h_Ns[i]
             else:
-                pre_comp_input = None
+                h_N = None
             hiddens = []
             for j, layer in enumerate(self.layers):
-                input_ = layer(g, input_, hidden_states[j], x_agg=pre_comp_input)
+                input_ = layer(g, input_, hidden_states[j], h_N=h_N)
                 hiddens.append(input_)
                 pre_comp_input = None
             outputs.append(self.out_layer(input_))
@@ -217,7 +217,7 @@ class GraphRNN(nn.Module):
                  num_layers,
                  net,
                  decay_steps,
-                 aggregate_x):
+                 agg_seq):
         super(GraphRNN, self).__init__()
         self.in_feats = in_feats
         self.out_feats = out_feats
@@ -231,7 +231,7 @@ class GraphRNN(nn.Module):
                                       self.num_layers,
                                       self.net,
                                       self.seq_len,
-                                      aggregate_x)
+                                      agg_seq)
 
         self.decoder = StackedDecoder(self.in_feats,
                                       self.out_feats,
@@ -239,7 +239,7 @@ class GraphRNN(nn.Module):
                                       self.num_layers,
                                       self.net,
                                       self.seq_len,
-                                      aggregate_x)
+                                      agg_seq)
     # Threshold For Teacher Forcing
 
     def compute_thresh(self, batch_cnt):
@@ -257,7 +257,7 @@ class GraphRNN(nn.Module):
 
     def decode(self, g, teacher_states, hidden_states, batch_cnt, device):
         # outputs = []
-        inputs = [torch.zeros(g.num_nodes(), self.in_feats).to(device) for _ in range(self.seq_len)]
+        inputs = torch.zeros(self.seq_len, g.num_nodes(), self.in_feats).to(device)
 
         if np.random.random() < self.compute_thresh(batch_cnt) and self.training:
             outputs, hidden_states = self.decoder(g, teacher_states, hidden_states)
