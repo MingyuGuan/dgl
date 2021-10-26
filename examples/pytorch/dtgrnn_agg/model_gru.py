@@ -101,7 +101,7 @@ class StackedEncoder(nn.Module):
                 print("Size of x_N", x_N.size())
 
             x_test = torch.tensor_split(x_N, self.seq_len, dim=-1)
-            print("Size of x_test", x_test.size())
+            print("Size of x_test", len(x_test))
 
         for i in range(self.seq_len):
             input_ = x[i]
