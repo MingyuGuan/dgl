@@ -66,12 +66,13 @@ class StackedEncoder(nn.Module):
         message passing network for graph computation
     '''
 
-    def __init__(self, in_feats, out_feats, num_layers, net):
+    def __init__(self, in_feats, out_feats, num_layers, net, seq_len):
         super(StackedEncoder, self).__init__()
         self.in_feats = in_feats
         self.out_feats = out_feats
         self.num_layers = num_layers
         self.net = net
+        self.seq_len = seq_len
         self.layers = nn.ModuleList()
         if self.num_layers <= 0:
             raise DGLError("Layer Number must be greater than 0! ")
@@ -83,11 +84,13 @@ class StackedEncoder(nn.Module):
 
     # hidden_states should be a list which for different layer
     def forward(self, g, x, hidden_states):
-        hiddens = []
-        for i, layer in enumerate(self.layers):
-            x = layer(g, x, hidden_states[i])
-            hiddens.append(x)
-        return x, hiddens
+        for i in range(self.seq_len):
+            hiddens = []
+            for i, layer in enumerate(self.layers):
+                x = layer(g, x, hidden_states[i])
+                hiddens.append(x)
+            hidden_states = hiddens
+        return x, hidden_states
 
 
 class StackedDecoder(nn.Module):
@@ -168,7 +171,8 @@ class GraphRNN(nn.Module):
                  seq_len,
                  num_layers,
                  net,
-                 decay_steps):
+                 decay_steps,
+                 aggregate_x):
         super(GraphRNN, self).__init__()
         self.in_feats = in_feats
         self.out_feats = out_feats
@@ -180,7 +184,8 @@ class GraphRNN(nn.Module):
         self.encoder = StackedEncoder(self.in_feats,
                                       self.out_feats,
                                       self.num_layers,
-                                      self.net)
+                                      self.net,
+                                      self.seq_len)
 
         self.decoder = StackedDecoder(self.in_feats,
                                       self.out_feats,
@@ -195,8 +200,10 @@ class GraphRNN(nn.Module):
     def encode(self, g, inputs, device):
         hidden_states = [torch.zeros(g.num_nodes(), self.out_feats).to(
             device) for _ in range(self.num_layers)]
-        for i in range(self.seq_len):
-            _, hidden_states = self.encoder(g, inputs[i], hidden_states)
+        # for i in range(self.seq_len):
+        #     _, hidden_states = self.encoder(g, inputs[i], hidden_states)
+
+        _, hidden_states = self.encoder(g, inputs, hidden_states)
 
         return hidden_states
 
