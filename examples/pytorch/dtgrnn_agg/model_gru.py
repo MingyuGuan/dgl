@@ -87,7 +87,7 @@ class StackedEncoder(nn.Module):
     def forward(self, g, x, hidden_states):
         if self.aggregate_x:
             print("Size of x", x.size())
-            x_split = torch.split(x, self.seq_len)
+            x_split = torch.split(x, 1)
             print("Size of x_split", len(x_split))
             x_cat = torch.cat(x_split, dim=-1)
             print("Size of x_cat", x_cat.size())
