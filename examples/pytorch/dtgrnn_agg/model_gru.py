@@ -101,7 +101,10 @@ class StackedEncoder(nn.Module):
 
         for i in range(self.seq_len):
             input_ = x[i]
-            pre_comp_input = x_agg[i]
+            if self.aggregate_x:
+                pre_comp_input = x_agg[i]
+            else:
+                pre_comp_input = None
             hiddens = []
             for j, layer in enumerate(self.layers):
                 input_ = layer(g, input_, hidden_states[j], x_agg=pre_comp_input)
@@ -169,7 +172,10 @@ class StackedDecoder(nn.Module):
         outputs = []
         for i in range(self.seq_len):
             input_ = x[i]
-            pre_comp_input = x_agg[i]
+            if self.aggregate_x:
+                pre_comp_input = x_agg[i]
+            else:
+                pre_comp_input = None
             hiddens = []
             for j, layer in enumerate(self.layers):
                 input_ = layer(g, input_, hidden_states[j], x_agg=pre_comp_input)
