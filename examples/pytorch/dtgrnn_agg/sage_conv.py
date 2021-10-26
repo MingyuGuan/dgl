@@ -15,7 +15,7 @@ class SageConv(nn.Module):
         Output feature size.
     """
     def __init__(self, in_feat, out_feat):
-        super(SAGEConv, self).__init__()
+        super(SageConv, self).__init__()
         # A linear submodule for projecting the input and neighbor feature to the output.
         self.linear = nn.Linear(in_feat * 2, out_feat)
 
