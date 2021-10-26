@@ -116,13 +116,14 @@ class StackedDecoder(nn.Module):
         message passing network for graph computation
     '''
 
-    def __init__(self, in_feats, hid_feats, out_feats, num_layers, net):
+    def __init__(self, in_feats, hid_feats, out_feats, num_layers, net, seq_len):
         super(StackedDecoder, self).__init__()
         self.in_feats = in_feats
         self.hid_feats = hid_feats
         self.out_feats = out_feats
         self.num_layers = num_layers
         self.net = net
+        self.seq_len = seq_len
         self.out_layer = nn.Linear(self.hid_feats, self.out_feats)
         self.layers = nn.ModuleList()
         if self.num_layers <= 0:
@@ -133,12 +134,23 @@ class StackedDecoder(nn.Module):
                 self.hid_feats, self.hid_feats, net))
 
     def forward(self, g, x, hidden_states):
-        hiddens = []
-        for i, layer in enumerate(self.layers):
-            x = layer(g, x, hidden_states[i])
-            hiddens.append(x)
-        x = self.out_layer(x)
-        return x, hiddens
+        outputs = []
+        for i in range(self.seq_len):
+            input_ = x[i]
+            hiddens = []
+            for j, layer in enumerate(self.layers):
+                input_ = layer(g, input_, hidden_states[j])
+                hiddens.append(input_)
+            outputs.append(self.out_layer(input_))
+            hidden_states = hiddens
+        return outputs, hidden_states
+
+        # hiddens = []
+        # for i, layer in enumerate(self.layers):
+        #     x = layer(g, x, hidden_states[i])
+        #     hiddens.append(x)
+        # x = self.out_layer(x)
+        # return x, hiddens
 
 
 class GraphRNN(nn.Module):
@@ -192,7 +204,8 @@ class GraphRNN(nn.Module):
                                       self.out_feats,
                                       self.in_feats,
                                       self.num_layers,
-                                      self.net)
+                                      self.net,
+                                      self.seq_len)
     # Threshold For Teacher Forcing
 
     def compute_thresh(self, batch_cnt):
@@ -209,15 +222,14 @@ class GraphRNN(nn.Module):
         return hidden_states
 
     def decode(self, g, teacher_states, hidden_states, batch_cnt, device):
-        outputs = []
-        inputs = torch.zeros(g.num_nodes(), self.in_feats).to(device)
-        for i in range(self.seq_len):
-            if np.random.random() < self.compute_thresh(batch_cnt) and self.training:
-                inputs, hidden_states = self.decoder(
-                    g, teacher_states[i], hidden_states)
-            else:
-                inputs, hidden_states = self.decoder(g, inputs, hidden_states)
-            outputs.append(inputs)
+        # outputs = []
+        inputs = [torch.zeros(g.num_nodes(), self.in_feats).to(device) for _ in range(self.seq_len)]
+
+        if np.random.random() < self.compute_thresh(batch_cnt) and self.training:
+            outputs, hidden_states = self.decoder(g, teacher_states, hidden_states)
+        else:
+            outputs, hidden_states = self.decoder(g, inputs, hidden_states)
+
         outputs = torch.stack(outputs)
         return outputs
 
