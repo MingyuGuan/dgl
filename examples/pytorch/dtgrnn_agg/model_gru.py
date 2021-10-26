@@ -49,6 +49,14 @@ class GraphGRUCell(nn.Module):
                 g.update_all(message_func=fn.copy_u('x', 'm'), reduce_func=fn.mean('m', 'h_N'))
                 h_agg = g.ndata['h_N']
 
+            if h_N is None:
+                # message passing
+                with g.local_scope():
+                    g.ndata['x'] = x
+                    # update_all is a message passing API.
+                    g.update_all(message_func=fn.copy_u('x', 'm'), reduce_func=fn.mean('m', 'h_N'))
+                    h_N = g.ndata['h_N']
+
         r = torch.sigmoid(self.r_x_net(g, x, h_N=h_N) + self.r_h_net(g, h, h_N=h_agg))
         u = torch.sigmoid(self.u_x_net(g, x, h_N=h_N) + self.u_h_net(g, h, h_N=h_agg))
         h_ = r*h
