@@ -30,13 +30,13 @@ class SageConv(nn.Module):
             The input node feature.
         """
         if x_agg is None:
-	        with g.local_scope():
-	            g.ndata['h'] = h
-	            # update_all is a message passing API.
-	            g.update_all(message_func=fn.copy_u('h', 'm'), reduce_func=fn.mean('m', 'h_N'))
-	            h_N = g.ndata['h_N']
-	    else:
-	    	h_N = x_agg
+            with g.local_scope():
+                g.ndata['h'] = h
+                # update_all is a message passing API.
+                g.update_all(message_func=fn.copy_u('h', 'm'), reduce_func=fn.mean('m', 'h_N'))
+                h_N = g.ndata['h_N']
+        else:
+            h_N = x_agg
 
         h_total = torch.cat([h, h_N], dim=1)
         return self.linear(h_total)
