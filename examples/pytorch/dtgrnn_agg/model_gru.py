@@ -89,8 +89,8 @@ class StackedEncoder(nn.Module):
             print("Size of x", x.size())
             x_split = torch.split(x, 1)
             print("Size of x_split", len(x_split))
-            x_agg = torch.cat(x_split, dim=-1).squeeze
-            print("Size of x_cat", x_cat.size())
+            x_agg = torch.squeeze(torch.cat(x_split, dim=-1))
+            print("Size of x_cat", x_agg.size())
 
             # message passing
             with g.local_scope():
