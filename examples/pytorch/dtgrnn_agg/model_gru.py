@@ -180,7 +180,7 @@ class StackedDecoder(nn.Module):
             for j, layer in enumerate(self.layers):
                 input_ = layer(g, input_, hidden_states[j], h_N=h_N)
                 hiddens.append(input_)
-                pre_comp_input = None
+                h_N = None
             outputs.append(self.out_layer(input_))
             hidden_states = hiddens
         return outputs, hidden_states
