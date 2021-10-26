@@ -142,7 +142,7 @@ if __name__ == "__main__":
                         help="Maximum gradient norm for update parameters")
 
     parser.add_argument('--agg-seq', action='store_true')
-    parser.add_argument('--reuse-h', action='store_true')
+    parser.add_argument('--reuse-gate-rz', action='store_true')
 
     args = parser.parse_args()
     # Load the datasets
@@ -187,7 +187,8 @@ if __name__ == "__main__":
                      num_layers=2,
                      net=net,
                      decay_steps=args.decay_steps,
-                     agg_seq=args.agg_seq).to(device)
+                     agg_seq=args.agg_seq,
+                     reuse_gate_rz=args.reuse_gate_rz).to(device)
 
     optimizer = torch.optim.Adam(gcrn.parameters(), lr=args.lr)
     scheduler = torch.optim.lr_scheduler.ExponentialLR(optimizer, gamma=0.99)

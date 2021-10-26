@@ -23,10 +23,11 @@ class GraphGRUCell(nn.Module):
         message passing network
     '''
 
-    def __init__(self, in_feats, out_feats, net):
+    def __init__(self, in_feats, out_feats, net, reuse_gate_rz):
         super(GraphGRUCell, self).__init__()
         self.in_feats = in_feats
         self.out_feats = out_feats
+        self.reuse_gate_rz = reuse_gate_rz
 
         # net can be any GNN model
         self.r_x_net = net(in_feats, out_feats)
@@ -39,10 +40,19 @@ class GraphGRUCell(nn.Module):
         self.c_h_net = net(out_feats, out_feats)
 
     def forward(self, g, x, h, h_N=None):
-        r = torch.sigmoid(self.r_x_net(g, x, h_N=h_N) + self.r_h_net(g, h))
-        u = torch.sigmoid(self.u_x_net(g, x, h_N=h_N) + self.u_h_net(g, h))
+        h_agg = None
+        if reuse_gate_rz:
+            # message passing
+            with g.local_scope():
+                g.ndata['x'] = h
+                # update_all is a message passing API.
+                g.update_all(message_func=fn.copy_u('x', 'm'), reduce_func=fn.mean('m', 'h_N'))
+                h_agg = g.ndata['h_N']
+
+        r = torch.sigmoid(self.r_x_net(g, x, h_N=h_N) + self.r_h_net(g, h, h_N=h_agg))
+        u = torch.sigmoid(self.u_x_net(g, x, h_N=h_N) + self.u_h_net(g, h, h_N=h_agg))
         h_ = r*h
-        c = torch.tanh(self.c_x_net(g, x, h_N=h_N) + self.c_h_net(g, h))
+        c = torch.tanh(self.c_x_net(g, x, h_N=h_N) + self.c_h_net(g, h_))
         new_h = u*h + (1-u)*c
         return new_h
 
@@ -66,7 +76,7 @@ class StackedEncoder(nn.Module):
         message passing network for graph computation
     '''
 
-    def __init__(self, in_feats, out_feats, num_layers, net, seq_len, agg_seq):
+    def __init__(self, in_feats, out_feats, num_layers, net, seq_len, agg_seq, reuse_gate_rz):
         super(StackedEncoder, self).__init__()
         self.in_feats = in_feats
         self.out_feats = out_feats
@@ -78,10 +88,10 @@ class StackedEncoder(nn.Module):
         if self.num_layers <= 0:
             raise DGLError("Layer Number must be greater than 0! ")
         self.layers.append(GraphGRUCell(
-            self.in_feats, self.out_feats, self.net))
+            self.in_feats, self.out_feats, self.net, reuse_gate_rz))
         for _ in range(self.num_layers-1):
             self.layers.append(GraphGRUCell(
-                self.out_feats, self.out_feats, self.net))
+                self.out_feats, self.out_feats, self.net, reuse_gate_rz))
 
     # hidden_states should be a list which for different layer
     def forward(self, g, x, hidden_states):
@@ -136,7 +146,7 @@ class StackedDecoder(nn.Module):
         message passing network for graph computation
     '''
 
-    def __init__(self, in_feats, hid_feats, out_feats, num_layers, net, seq_len, agg_seq):
+    def __init__(self, in_feats, hid_feats, out_feats, num_layers, net, seq_len, agg_seq, reuse_gate_rz):
         super(StackedDecoder, self).__init__()
         self.in_feats = in_feats
         self.hid_feats = hid_feats
@@ -149,10 +159,10 @@ class StackedDecoder(nn.Module):
         self.layers = nn.ModuleList()
         if self.num_layers <= 0:
             raise DGLError("Layer Number must be greater than 0!")
-        self.layers.append(GraphGRUCell(self.in_feats, self.hid_feats, net))
+        self.layers.append(GraphGRUCell(self.in_feats, self.hid_feats, net, reuse_gate_rz))
         for _ in range(self.num_layers-1):
             self.layers.append(GraphGRUCell(
-                self.hid_feats, self.hid_feats, net))
+                self.hid_feats, self.hid_feats, net, reuse_gate_rz))
 
     def forward(self, g, x, hidden_states):
         h_Ns = None
@@ -217,7 +227,8 @@ class GraphRNN(nn.Module):
                  num_layers,
                  net,
                  decay_steps,
-                 agg_seq):
+                 agg_seq,
+                 reuse_gate_rz):
         super(GraphRNN, self).__init__()
         self.in_feats = in_feats
         self.out_feats = out_feats
@@ -231,7 +242,8 @@ class GraphRNN(nn.Module):
                                       self.num_layers,
                                       self.net,
                                       self.seq_len,
-                                      agg_seq)
+                                      agg_seq,
+                                      reuse_gate_rz)
 
         self.decoder = StackedDecoder(self.in_feats,
                                       self.out_feats,
@@ -239,7 +251,8 @@ class GraphRNN(nn.Module):
                                       self.num_layers,
                                       self.net,
                                       self.seq_len,
-                                      agg_seq)
+                                      agg_seq,
+                                      reuse_gate_rz)
     # Threshold For Teacher Forcing
 
     def compute_thresh(self, batch_cnt):
