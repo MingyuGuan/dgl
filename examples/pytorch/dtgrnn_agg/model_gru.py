@@ -87,9 +87,9 @@ class StackedEncoder(nn.Module):
     def forward(self, g, x, hidden_states):
         if self.aggregate_x:
             x_split = torch.split(x, self.seq_len, dim=0)
-            print("Size of x_split", x_split.size())
+            print("Size of x_split", len(x_split))
             x_cat = torch.cat(x_split, dim=-1)
-            print("Size of x_cat", x_cat.size())
+            print("Size of x_cat", len(x_cat))
 
             # message passing
             with g.local_scope():
@@ -99,7 +99,7 @@ class StackedEncoder(nn.Module):
                 x_N = g.ndata['x_N']
                 print("Size of x_N", x_N.size())
 
-            x_test = torch.split(x_N, self.seq_len, dim=-1)
+            x_test = torch.tensor_split(x_N, self.seq_len, dim=-1)
             print("Size of x_test", x_test.size())
 
         for i in range(self.seq_len):
