@@ -152,13 +152,29 @@ class StackedDecoder(nn.Module):
                 self.hid_feats, self.hid_feats, net))
 
     def forward(self, g, x, hidden_states):
+        x_agg = None
+        if self.aggregate_x:
+            x_split = torch.split(x, 1)
+            x_cat = torch.squeeze(torch.cat(x_split, dim=-1))
+
+            # message passing
+            with g.local_scope():
+                g.ndata['x'] = x_cat
+                # update_all is a message passing API.
+                g.update_all(message_func=fn.copy_u('x', 'm'), reduce_func=fn.mean('m', 'x_N'))
+                x_N = g.ndata['x_N']
+
+            x_agg = torch.tensor_split(x_N, self.seq_len, dim=-1)
+
         outputs = []
         for i in range(self.seq_len):
             input_ = x[i]
+            pre_comp_input = x_agg[i]
             hiddens = []
             for j, layer in enumerate(self.layers):
-                input_ = layer(g, input_, hidden_states[j])
+                input_ = layer(g, input_, hidden_states[j], x_agg=pre_comp_input)
                 hiddens.append(input_)
+                pre_comp_input = None
             outputs.append(self.out_layer(input_))
             hidden_states = hiddens
         return outputs, hidden_states
