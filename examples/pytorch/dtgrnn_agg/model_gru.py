@@ -56,6 +56,65 @@ class GraphGRUCell(nn.Module):
         new_h = u*h + (1-u)*c
         return new_h
 
+class GraphLSTMCell(nn.Module):
+    '''Graph GRU unit which can use any message passing
+    net to replace the linear layer in the original GRU
+    Parameter
+    ==========
+    in_feats : int
+        number of input features
+
+    out_feats : int
+        number of output features
+
+    net : torch.nn.Module
+        message passing network
+    '''
+
+    def __init__(self, in_feats, out_feats, net, reuse_gate_rz):
+        super(GraphGRUCell, self).__init__()
+        self.in_feats = in_feats
+        self.out_feats = out_feats
+        self.reuse_gate_rz = reuse_gate_rz
+
+        # net can be any GNN model
+        self.i_x_net = net(in_feats, out_feats)
+        self.i_h_net = net(out_feats, out_feats)
+
+        self.f_x_net = net(in_feats, out_feats)
+        self.f_h_net = net(out_feats, out_feats)
+
+        self.c_x_net = net(in_feats, out_feats)
+        self.c_h_net = net(out_feats, out_feats)
+
+        self.o_x_net = net(in_feats, out_feats)
+        self.o_h_net = net(out_feats, out_feats)
+
+    def forward(self, g, x, h, h_N=None):
+        if h_N is None:
+            # message passing
+            with g.local_scope():
+                g.ndata['x'] = x
+                # update_all is a message passing API.
+                g.update_all(message_func=fn.copy_u('x', 'm'), reduce_func=fn.mean('m', 'h_N'))
+                h_N = g.ndata['h_N']
+
+        h_agg = None
+        if self.reuse_gate_rz:
+            # message passing
+            with g.local_scope():
+                g.ndata['x'] = h
+                # update_all is a message passing API.
+                g.update_all(message_func=fn.copy_u('x', 'm'), reduce_func=fn.mean('m', 'h_N'))
+                h_agg = g.ndata['h_N']
+
+        r = torch.sigmoid(self.r_x_net(g, x, h_N=h_N) + self.r_h_net(g, h, h_N=h_agg))
+        u = torch.sigmoid(self.u_x_net(g, x, h_N=h_N) + self.u_h_net(g, h, h_N=h_agg))
+        h_ = r*h
+        c = torch.tanh(self.c_x_net(g, x, h_N=h_N) + self.c_h_net(g, h_))
+        new_h = u*h + (1-u)*c
+        return new_h
+
 
 class StackedEncoder(nn.Module):
     '''One step encoder unit for hidden representation generation
