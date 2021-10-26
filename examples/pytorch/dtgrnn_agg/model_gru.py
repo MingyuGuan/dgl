@@ -66,13 +66,14 @@ class StackedEncoder(nn.Module):
         message passing network for graph computation
     '''
 
-    def __init__(self, in_feats, out_feats, num_layers, net, seq_len):
+    def __init__(self, in_feats, out_feats, num_layers, net, seq_len, aggregate_x):
         super(StackedEncoder, self).__init__()
         self.in_feats = in_feats
         self.out_feats = out_feats
         self.num_layers = num_layers
         self.net = net
         self.seq_len = seq_len
+        self.aggregate_x = aggregate_x
         self.layers = nn.ModuleList()
         if self.num_layers <= 0:
             raise DGLError("Layer Number must be greater than 0! ")
@@ -84,6 +85,23 @@ class StackedEncoder(nn.Module):
 
     # hidden_states should be a list which for different layer
     def forward(self, g, x, hidden_states):
+        if self.aggregate_x:
+            x_split = torch.split(x, self.seq_len, dim=0)
+            print("Size of x_split", x_split.size())
+            x_cat = torch.cat(x_split, dim=-1)
+            print("Size of x_cat", x_cat.size())
+
+            # message passing
+            with g.local_scope():
+                g.ndata['x'] = x_cat
+                # update_all is a message passing API.
+                g.update_all(message_func=fn.copy_u('x', 'm'), reduce_func=fn.mean('m', 'x_N'))
+                x_N = g.ndata['x_N']
+                print("Size of x_N", x_N.size())
+
+            x_test = torch.split(x_N, self.seq_len, dim=-1)
+            print("Size of x_test", x_test.size())
+
         for i in range(self.seq_len):
             input_ = x[i]
             hiddens = []
@@ -116,7 +134,7 @@ class StackedDecoder(nn.Module):
         message passing network for graph computation
     '''
 
-    def __init__(self, in_feats, hid_feats, out_feats, num_layers, net, seq_len):
+    def __init__(self, in_feats, hid_feats, out_feats, num_layers, net, seq_len, aggregate_x):
         super(StackedDecoder, self).__init__()
         self.in_feats = in_feats
         self.hid_feats = hid_feats
@@ -125,6 +143,7 @@ class StackedDecoder(nn.Module):
         self.net = net
         self.seq_len = seq_len
         self.out_layer = nn.Linear(self.hid_feats, self.out_feats)
+        self.aggregate_x = aggregate_x
         self.layers = nn.ModuleList()
         if self.num_layers <= 0:
             raise DGLError("Layer Number must be greater than 0!")
@@ -144,14 +163,6 @@ class StackedDecoder(nn.Module):
             outputs.append(self.out_layer(input_))
             hidden_states = hiddens
         return outputs, hidden_states
-
-        # hiddens = []
-        # for i, layer in enumerate(self.layers):
-        #     x = layer(g, x, hidden_states[i])
-        #     hiddens.append(x)
-        # x = self.out_layer(x)
-        # return x, hiddens
-
 
 class GraphRNN(nn.Module):
     '''Graph Sequence to sequence prediction framework
@@ -198,14 +209,16 @@ class GraphRNN(nn.Module):
                                       self.out_feats,
                                       self.num_layers,
                                       self.net,
-                                      self.seq_len)
+                                      self.seq_len,
+                                      aggregate_x)
 
         self.decoder = StackedDecoder(self.in_feats,
                                       self.out_feats,
                                       self.in_feats,
                                       self.num_layers,
                                       self.net,
-                                      self.seq_len)
+                                      self.seq_len,
+                                      aggregate_x)
     # Threshold For Teacher Forcing
 
     def compute_thresh(self, batch_cnt):
