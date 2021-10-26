@@ -41,7 +41,7 @@ class GraphGRUCell(nn.Module):
 
     def forward(self, g, x, h, h_N=None):
         h_agg = None
-        if reuse_gate_rz:
+        if self.reuse_gate_rz:
             # message passing
             with g.local_scope():
                 g.ndata['x'] = h
