@@ -19,7 +19,7 @@ class SageConv(nn.Module):
         # A linear submodule for projecting the input and neighbor feature to the output.
         self.linear = nn.Linear(in_feat * 2, out_feat)
 
-    def forward(self, g, h, h_N=None):
+    def forward(self, g, h, agg=None):
         """Forward computation
 
         Parameters
@@ -29,12 +29,12 @@ class SageConv(nn.Module):
         h : Tensor
             The input node feature.
         """
-        if h_N is None:
+        if agg is None:
             with g.local_scope():
                 g.ndata['h'] = h
                 # update_all is a message passing API.
                 g.update_all(message_func=fn.copy_u('h', 'm'), reduce_func=fn.mean('m', 'h_N'))
-                h_N = g.ndata['h_N']
+                agg = g.ndata['h_N']
 
-        h_total = torch.cat([h, h_N], dim=1)
+        h_total = torch.cat([h, agg], dim=1)
         return self.linear(h_total)

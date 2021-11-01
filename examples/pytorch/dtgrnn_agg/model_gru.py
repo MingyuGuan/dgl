@@ -39,7 +39,7 @@ class GraphGRUCell(nn.Module):
         self.c_x_net = net(in_feats, out_feats)
         self.c_h_net = net(out_feats, out_feats)
 
-    def forward(self, g, x, h, h_N=None):
+    def forward(self, g, x, h, x_agg=None):
         h_agg = None
         if self.reuse_msg_passing:
             # message passing
@@ -50,18 +50,18 @@ class GraphGRUCell(nn.Module):
                 h_agg = g.ndata['h_N']
 
             # even merge these two?
-            if h_N is None:
+            if x_agg is None:
                 # message passing
                 with g.local_scope():
                     g.ndata['x'] = x
                     # update_all is a message passing API.
                     g.update_all(message_func=fn.copy_u('x', 'm'), reduce_func=fn.mean('m', 'h_N'))
-                    h_N = g.ndata['h_N']
+                    x_agg = g.ndata['h_N']
 
-        r = torch.sigmoid(self.r_x_net(g, x, h_N=h_N) + self.r_h_net(g, h, h_N=h_agg))
-        u = torch.sigmoid(self.u_x_net(g, x, h_N=h_N) + self.u_h_net(g, h, h_N=h_agg))
+        r = torch.sigmoid(self.r_x_net(g, x, agg=x_agg) + self.r_h_net(g, h, agg=h_agg))
+        u = torch.sigmoid(self.u_x_net(g, x, agg=x_agg) + self.u_h_net(g, h, agg=h_agg))
         h_ = r*h
-        c = torch.tanh(self.c_x_net(g, x, h_N=h_N) + self.c_h_net(g, h_))
+        c = torch.tanh(self.c_x_net(g, x, agg=x_agg) + self.c_h_net(g, h_))
         new_h = u*h + (1-u)*c
         return new_h
 
@@ -104,7 +104,7 @@ class StackedEncoder(nn.Module):
 
     # hidden_states should be a list which for different layer
     def forward(self, g, x, hidden_states):
-        h_Ns = None
+        x_aggs = None
         if self.merge_time_steps:
             x_split = torch.split(x, 1)
             x_cat = torch.squeeze(torch.cat(x_split, dim=-1))
@@ -114,21 +114,21 @@ class StackedEncoder(nn.Module):
                 g.ndata['x'] = x_cat
                 # update_all is a message passing API.
                 g.update_all(message_func=fn.copy_u('x', 'm'), reduce_func=fn.mean('m', 'h_N'))
-                h_N = g.ndata['h_N']
+                x_agg = g.ndata['h_N']
 
-            h_Ns = torch.tensor_split(h_N, self.seq_len, dim=-1)
+            x_aggs = torch.tensor_split(x_agg, self.seq_len, dim=-1)
 
         for i in range(self.seq_len):
             input_ = x[i]
             if self.merge_time_steps:
-                h_N = h_Ns[i]
+                x_agg = x_aggs[i]
             else:
-                h_N = None
+                x_agg = None
             hiddens = []
             for j, layer in enumerate(self.layers):
-                input_ = layer(g, input_, hidden_states[j], h_N=h_N)
+                input_ = layer(g, input_, hidden_states[j], x_agg=x_agg)
                 hiddens.append(input_)
-                h_N = None
+                x_agg = None
             hidden_states = hiddens
         return x, hidden_states
 
@@ -174,7 +174,7 @@ class StackedDecoder(nn.Module):
                 self.hid_feats, self.hid_feats, net, reuse_msg_passing))
 
     def forward(self, g, x, hidden_states):
-        h_Ns = None
+        x_aggs = None
         if self.merge_time_steps:
             x_split = torch.split(x, 1)
             x_cat = torch.squeeze(torch.cat(x_split, dim=-1))
@@ -184,22 +184,22 @@ class StackedDecoder(nn.Module):
                 g.ndata['x'] = x_cat
                 # update_all is a message passing API.
                 g.update_all(message_func=fn.copy_u('x', 'm'), reduce_func=fn.mean('m', 'h_N'))
-                h_N = g.ndata['h_N']
+                x_agg = g.ndata['h_N']
 
-            h_Ns = torch.tensor_split(h_N, self.seq_len, dim=-1)
+            x_aggs = torch.tensor_split(x_agg, self.seq_len, dim=-1)
 
         outputs = []
         for i in range(self.seq_len):
             input_ = x[i]
             if self.merge_time_steps:
-                h_N = h_Ns[i]
+                x_agg = x_aggs[i]
             else:
-                h_N = None
+                x_agg = None
             hiddens = []
             for j, layer in enumerate(self.layers):
-                input_ = layer(g, input_, hidden_states[j], h_N=h_N)
+                input_ = layer(g, input_, hidden_states[j], x_agg=x_agg)
                 hiddens.append(input_)
-                h_N = None
+                x_agg = None
             outputs.append(self.out_layer(input_))
             hidden_states = hiddens
         return outputs, hidden_states
