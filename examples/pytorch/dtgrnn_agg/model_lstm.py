@@ -23,11 +23,11 @@ class GraphLSTMCell(nn.Module):
         message passing network
     '''
 
-    def __init__(self, in_feats, out_feats, net, reuse_gate_rz):
+    def __init__(self, in_feats, out_feats, net, reuse_msg_passing):
         super(GraphLSTMCell, self).__init__()
         self.in_feats = in_feats
         self.out_feats = out_feats
-        self.reuse_gate_rz = reuse_gate_rz
+        self.reuse_msg_passing = reuse_msg_passing
 
         # net can be any GNN model
         self.i_x_net = net(in_feats, out_feats)
@@ -55,7 +55,7 @@ class GraphLSTMCell(nn.Module):
 
     def forward(self, g, x, h, c, h_N=None):
         h_agg = None
-        if self.reuse_gate_rz:
+        if self.reuse_msg_passing:
             # message passing
             with g.local_scope():
                 g.ndata['x'] = h
@@ -115,27 +115,27 @@ class StackedEncoder(nn.Module):
         message passing network for graph computation
     '''
 
-    def __init__(self, in_feats, out_feats, num_layers, net, seq_len, agg_seq, reuse_gate_rz):
+    def __init__(self, in_feats, out_feats, num_layers, net, seq_len, merge_time_steps, reuse_msg_passing):
         super(StackedEncoder, self).__init__()
         self.in_feats = in_feats
         self.out_feats = out_feats
         self.num_layers = num_layers
         self.net = net
         self.seq_len = seq_len
-        self.agg_seq = agg_seq
+        self.merge_time_steps = merge_time_steps
         self.layers = nn.ModuleList()
         if self.num_layers <= 0:
             raise DGLError("Layer Number must be greater than 0! ")
         self.layers.append(GraphGRUCell(
-            self.in_feats, self.out_feats, self.net, reuse_gate_rz))
+            self.in_feats, self.out_feats, self.net, reuse_msg_passing))
         for _ in range(self.num_layers-1):
             self.layers.append(GraphGRUCell(
-                self.out_feats, self.out_feats, self.net, reuse_gate_rz))
+                self.out_feats, self.out_feats, self.net, reuse_msg_passing))
 
     # hidden_states should be a list which for different layer
     def forward(self, g, x, hidden_states, cell_states):
         h_Ns = None
-        if self.agg_seq:
+        if self.merge_time_steps:
             x_split = torch.split(x, 1)
             x_cat = torch.squeeze(torch.cat(x_split, dim=-1))
 
@@ -150,7 +150,7 @@ class StackedEncoder(nn.Module):
 
         for i in range(self.seq_len):
             input_ = x[i]
-            if self.agg_seq:
+            if self.merge_time_steps:
                 h_N = h_Ns[i]
             else:
                 h_N = None
@@ -188,7 +188,7 @@ class StackedDecoder(nn.Module):
         message passing network for graph computation
     '''
 
-    def __init__(self, in_feats, hid_feats, out_feats, num_layers, net, seq_len, agg_seq, reuse_gate_rz):
+    def __init__(self, in_feats, hid_feats, out_feats, num_layers, net, seq_len, merge_time_steps, reuse_msg_passing):
         super(StackedDecoder, self).__init__()
         self.in_feats = in_feats
         self.hid_feats = hid_feats
@@ -197,18 +197,18 @@ class StackedDecoder(nn.Module):
         self.net = net
         self.seq_len = seq_len
         self.out_layer = nn.Linear(self.hid_feats, self.out_feats)
-        self.agg_seq = agg_seq
+        self.merge_time_steps = merge_time_steps
         self.layers = nn.ModuleList()
         if self.num_layers <= 0:
             raise DGLError("Layer Number must be greater than 0!")
-        self.layers.append(GraphGRUCell(self.in_feats, self.hid_feats, net, reuse_gate_rz))
+        self.layers.append(GraphGRUCell(self.in_feats, self.hid_feats, net, reuse_msg_passing))
         for _ in range(self.num_layers-1):
             self.layers.append(GraphGRUCell(
-                self.hid_feats, self.hid_feats, net, reuse_gate_rz))
+                self.hid_feats, self.hid_feats, net, reuse_msg_passing))
 
     def forward(self, g, x, hidden_states, cell_states):
         h_Ns = None
-        if self.agg_seq:
+        if self.merge_time_steps:
             x_split = torch.split(x, 1)
             x_cat = torch.squeeze(torch.cat(x_split, dim=-1))
 
@@ -224,7 +224,7 @@ class StackedDecoder(nn.Module):
         outputs = []
         for i in range(self.seq_len):
             input_ = x[i]
-            if self.agg_seq:
+            if self.merge_time_steps:
                 h_N = h_Ns[i]
             else:
                 h_N = None
@@ -240,7 +240,7 @@ class StackedDecoder(nn.Module):
             cell_states = c_states
         return outputs, hidden_states, cell_states
 
-class GraphRNN(nn.Module):
+class GraphLSTM(nn.Module):
     '''Graph Sequence to sequence prediction framework
     Support multiple backbone GNN. Mainly used for traffic prediction.
 
@@ -272,9 +272,9 @@ class GraphRNN(nn.Module):
                  num_layers,
                  net,
                  decay_steps,
-                 agg_seq,
-                 reuse_gate_rz):
-        super(GraphRNN, self).__init__()
+                 merge_time_steps,
+                 reuse_msg_passing):
+        super(GraphLSTM, self).__init__()
         self.in_feats = in_feats
         self.out_feats = out_feats
         self.seq_len = seq_len
@@ -287,8 +287,8 @@ class GraphRNN(nn.Module):
                                       self.num_layers,
                                       self.net,
                                       self.seq_len,
-                                      agg_seq,
-                                      reuse_gate_rz)
+                                      merge_time_steps,
+                                      reuse_msg_passing)
 
         self.decoder = StackedDecoder(self.in_feats,
                                       self.out_feats,
@@ -296,8 +296,8 @@ class GraphRNN(nn.Module):
                                       self.num_layers,
                                       self.net,
                                       self.seq_len,
-                                      agg_seq,
-                                      reuse_gate_rz)
+                                      merge_time_steps,
+                                      reuse_msg_passing)
     # Threshold For Teacher Forcing
 
     def compute_thresh(self, batch_cnt):

@@ -11,6 +11,7 @@ import dgl
 # from dcrnn import DiffConvAgg
 # from gaan import GatedGAT
 from model_gru import GraphGRU
+from model_lstm import GraphLSTM
 from sage_conv import SageConv
 from dataloading import METR_LAGraphDataset, METR_LATrainDataset,\
     METR_LATestDataset, METR_LAValidDataset,\
@@ -187,6 +188,15 @@ if __name__ == "__main__":
 
     if args.rnn == 'gru':
         graph_rnn = GraphGRU(in_feats=2,
+                         out_feats=64,
+                         seq_len=12,
+                         num_layers=2,
+                         net=net,
+                         decay_steps=args.decay_steps,
+                         merge_time_steps=args.merge_time_steps,
+                         reuse_msg_passing=args.reuse_msg_passing).to(device)
+    elif args.rnn == 'lstm':
+        graph_rnn = GraphLSTM(in_feats=2,
                          out_feats=64,
                          seq_len=12,
                          num_layers=2,
