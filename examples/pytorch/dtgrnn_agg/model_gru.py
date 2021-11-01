@@ -238,7 +238,7 @@ class GraphGRU(nn.Module):
                  decay_steps,
                  merge_time_steps,
                  reuse_msg_passing):
-        super(GraphRNN, self).__init__()
+        super(GraphGRU, self).__init__()
         self.in_feats = in_feats
         self.out_feats = out_feats
         self.seq_len = seq_len

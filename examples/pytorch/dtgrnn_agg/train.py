@@ -141,6 +141,8 @@ if __name__ == "__main__":
     parser.add_argument('--max_grad_norm', type=float, default=5.0,
                         help="Maximum gradient norm for update parameters")
 
+    parser.add_argument('--rnn', type=str, default='gru',
+                        help="rnn model: gru or lstm")
     parser.add_argument('--merge-time-steps', action='store_true',
                         help="enable optimization of merging time steps")
     parser.add_argument('--reuse-msg-passing', action='store_true',
@@ -183,14 +185,15 @@ if __name__ == "__main__":
     if args.model == 'sage':
         net = SageConv
 
-    graph_rnn = GraphGRU(in_feats=2,
-                     out_feats=64,
-                     seq_len=12,
-                     num_layers=2,
-                     net=net,
-                     decay_steps=args.decay_steps,
-                     merge_time_steps=args.merge_time_steps,
-                     reuse_msg_passing=args.reuse_msg_passing).to(device)
+    if args.rnn == 'gru':
+        graph_rnn = GraphGRU(in_feats=2,
+                         out_feats=64,
+                         seq_len=12,
+                         num_layers=2,
+                         net=net,
+                         decay_steps=args.decay_steps,
+                         merge_time_steps=args.merge_time_steps,
+                         reuse_msg_passing=args.reuse_msg_passing).to(device)
 
     optimizer = torch.optim.Adam(graph_rnn.parameters(), lr=args.lr)
     scheduler = torch.optim.lr_scheduler.ExponentialLR(optimizer, gamma=0.99)
