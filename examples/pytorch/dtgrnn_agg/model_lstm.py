@@ -9,8 +9,8 @@ import dgl.function as fn
 from dgl.nn.functional import edge_softmax
 
 class GraphLSTMCell(nn.Module):
-    '''Graph GRU unit which can use any message passing
-    net to replace the linear layer in the original GRU
+    '''Graph LSTM unit which can use any message passing
+    net to replace the linear layer in the original LSTM
     Parameter
     ==========
     in_feats : int
@@ -126,10 +126,10 @@ class StackedEncoder(nn.Module):
         self.layers = nn.ModuleList()
         if self.num_layers <= 0:
             raise DGLError("Layer Number must be greater than 0! ")
-        self.layers.append(GraphGRUCell(
+        self.layers.append(GraphLSTMCell(
             self.in_feats, self.out_feats, self.net, reuse_msg_passing))
         for _ in range(self.num_layers-1):
-            self.layers.append(GraphGRUCell(
+            self.layers.append(GraphLSTMCell(
                 self.out_feats, self.out_feats, self.net, reuse_msg_passing))
 
     # hidden_states should be a list which for different layer
@@ -201,9 +201,9 @@ class StackedDecoder(nn.Module):
         self.layers = nn.ModuleList()
         if self.num_layers <= 0:
             raise DGLError("Layer Number must be greater than 0!")
-        self.layers.append(GraphGRUCell(self.in_feats, self.hid_feats, net, reuse_msg_passing))
+        self.layers.append(GraphLSTMCell(self.in_feats, self.hid_feats, net, reuse_msg_passing))
         for _ in range(self.num_layers-1):
-            self.layers.append(GraphGRUCell(
+            self.layers.append(GraphLSTMCell(
                 self.hid_feats, self.hid_feats, net, reuse_msg_passing))
 
     def forward(self, g, x, hidden_states, cell_states):
