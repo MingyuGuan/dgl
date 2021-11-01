@@ -10,7 +10,7 @@ import dgl
 # from dcrnn import DiffConv
 # from dcrnn import DiffConvAgg
 # from gaan import GatedGAT
-from model_gru import GraphRNN
+from model_gru import GraphGRU
 from sage_conv import SageConv
 from dataloading import METR_LAGraphDataset, METR_LATrainDataset,\
     METR_LATestDataset, METR_LAValidDataset,\
@@ -141,8 +141,10 @@ if __name__ == "__main__":
     parser.add_argument('--max_grad_norm', type=float, default=5.0,
                         help="Maximum gradient norm for update parameters")
 
-    parser.add_argument('--agg-seq', action='store_true')
-    parser.add_argument('--reuse-gate-rz', action='store_true')
+    parser.add_argument('--merge-time-steps', action='store_true',
+                        help="enable optimization of merging time steps")
+    parser.add_argument('--reuse-msg-passing', action='store_true',
+                        help="enable optimization of resusing message passing")
 
     args = parser.parse_args()
     # Load the datasets
@@ -181,27 +183,27 @@ if __name__ == "__main__":
     if args.model == 'sage':
         net = SageConv
 
-    gcrn = GraphRNN(in_feats=2,
+    graph_rnn = GraphGRU(in_feats=2,
                      out_feats=64,
                      seq_len=12,
                      num_layers=2,
                      net=net,
                      decay_steps=args.decay_steps,
-                     agg_seq=args.agg_seq,
-                     reuse_gate_rz=args.reuse_gate_rz).to(device)
+                     merge_time_steps=args.merge_time_steps,
+                     reuse_msg_passing=args.reuse_msg_passing).to(device)
 
-    optimizer = torch.optim.Adam(gcrn.parameters(), lr=args.lr)
+    optimizer = torch.optim.Adam(graph_rnn.parameters(), lr=args.lr)
     scheduler = torch.optim.lr_scheduler.ExponentialLR(optimizer, gamma=0.99)
 
     loss_fn = masked_mae_loss
 
     for e in range(args.epochs):
         start = time.time()
-        train_loss = train(gcrn, g, train_loader, optimizer, scheduler,
+        train_loss = train(graph_rnn, g, train_loader, optimizer, scheduler,
                            normalizer, loss_fn, device, args)
-        valid_loss = eval(gcrn, g, valid_loader,
+        valid_loss = eval(graph_rnn, g, valid_loader,
                           normalizer, loss_fn, device, args)
-        test_loss = eval(gcrn, g, test_loader,
+        test_loss = eval(graph_rnn, g, test_loader,
                          normalizer, loss_fn, device, args)
         end = time.time()
         print("Epoch: {} Time: {} Train Loss: {} Valid Loss: {} Test Loss: {}".format(e,
