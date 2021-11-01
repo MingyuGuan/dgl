@@ -231,7 +231,7 @@ class StackedDecoder(nn.Module):
             hiddens = []
             c_states = []
             for j, layer in enumerate(self.layers):
-                input_, c_state = layer(g, input_, hidden_states[j], h_N=h_N)
+                input_, c_state = layer(g, input_, hidden_states[j], cell_states[j], h_N=h_N)
                 hiddens.append(input_)
                 c_states.append(c_state)
                 h_N = None
