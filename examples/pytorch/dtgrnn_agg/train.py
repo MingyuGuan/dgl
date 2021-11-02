@@ -52,6 +52,19 @@ def train(model, graph, dataloader, optimizer, scheduler, normalizer, loss_fn, d
         y = y.permute(1, 0, 2, 3)
         # after: [seq_len, batch_size, num_nodes, in_feats]
 
+        print("Before replication: x.shape is", x.shape)
+
+        # replicate feats / nodes, if applicable
+        if args.num_feats > 2:
+            x_ = tuple([x] for _ in range(int(args.num_feats / x.shape[3])))
+            x = torch.cat(x_, 3)
+
+        if args.replicate_nodes > 1:
+            x_ = tuple([x] for _ in range(args.replicate_nodes))
+            x = torch.cat(x_, 2)
+
+        print("After replication: x.shape is", x.shape)
+
         x_norm = normalizer.normalize(x).reshape(
             x.shape[0], -1, x.shape[3]).float().to(device)
         y_norm = normalizer.normalize(y).reshape(
@@ -142,6 +155,12 @@ if __name__ == "__main__":
     parser.add_argument('--max_grad_norm', type=float, default=5.0,
                         help="Maximum gradient norm for update parameters")
 
+    parser.add_argument('--in-feats', type=int, default=2,
+                        help="num of node features increased by replication; 2 is # feats of the original dataset")
+    parser.add_argument('--replicate-nodes', type=int, default=1,
+                        help="Relicate nodes; 1 for original dataset")
+    parser.add_argument('--num-layers', type=int, default=2,
+                        help="Number of layers of the encoder/decoder")
     parser.add_argument('--rnn', type=str, default='gru',
                         help="rnn model: gru or lstm")
     parser.add_argument('--merge-time-steps', action='store_true',
@@ -161,6 +180,9 @@ if __name__ == "__main__":
         train_data = PEMS_BAYTrainDataset()
         test_data = PEMS_BAYTestDataset()
         valid_data = PEMS_BAYValidDataset()
+
+    if args.replicate_nodes > 1:
+        g = dgl.batch([g]*args.replicate_nodes)
 
     if args.gpu == -1:
         device = torch.device('cpu')
@@ -187,19 +209,19 @@ if __name__ == "__main__":
         net = SageConv
 
     if args.rnn == 'gru':
-        graph_rnn = GraphGRU(in_feats=2,
+        graph_rnn = GraphGRU(in_feats=args.in_feats,
                          out_feats=64,
                          seq_len=12,
-                         num_layers=2,
+                         num_layers=args.num_layers,
                          net=net,
                          decay_steps=args.decay_steps,
                          merge_time_steps=args.merge_time_steps,
                          reuse_msg_passing=args.reuse_msg_passing).to(device)
     elif args.rnn == 'lstm':
-        graph_rnn = GraphLSTM(in_feats=2,
+        graph_rnn = GraphLSTM(in_feats=args.in_feats,
                          out_feats=64,
                          seq_len=12,
-                         num_layers=2,
+                         num_layers=args.num_layers,
                          net=net,
                          decay_steps=args.decay_steps,
                          merge_time_steps=args.merge_time_steps,
