@@ -58,10 +58,14 @@ def train(model, graph, dataloader, optimizer, scheduler, normalizer, loss_fn, d
         if args.in_feats > 2:
             x_ = tuple(x for _ in range(int(args.in_feats / x.shape[3])))
             x = torch.cat(x_, 3)
+            y_ = tuple(y for _ in range(int(args.in_feats / y.shape[3])))
+            y = torch.cat(y_, 3)
 
         if args.replicate_nodes > 1:
             x_ = tuple(x for _ in range(args.replicate_nodes))
             x = torch.cat(x_, 2)
+            y_ = tuple(y for _ in range(args.replicate_nodes))
+            y = torch.cat(y_, 2)
 
         print("After replication: x.shape is", x.shape)
 
