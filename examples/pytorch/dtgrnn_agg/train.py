@@ -56,7 +56,7 @@ def train(model, graph, dataloader, optimizer, scheduler, normalizer, loss_fn, d
 
         # replicate feats / nodes, if applicable
         if args.in_feats > 2:
-            x_ = tuple([x] for _ in range(int(args.num_feats / x.shape[3])))
+            x_ = tuple([x] for _ in range(int(args.in_feats / x.shape[3])))
             x = torch.cat(x_, 3)
 
         if args.replicate_nodes > 1:
