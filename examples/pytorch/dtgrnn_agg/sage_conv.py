@@ -17,6 +17,7 @@ class SageConv(nn.Module):
     def __init__(self, in_feat, out_feat):
         super(SageConv, self).__init__()
         # A linear submodule for projecting the input and neighbor feature to the output.
+        print("Init SageConv: in_feat:", in_feat, ", out_feat:", out_feat)
         self.linear = nn.Linear(in_feat * 2, out_feat)
 
     def forward(self, g, h, agg=None):
@@ -37,4 +38,5 @@ class SageConv(nn.Module):
                 agg = g.ndata['h_N']
 
         h_total = torch.cat([h, agg], dim=1)
+        print("h_total shape:", h_total.shape)
         return self.linear(h_total)

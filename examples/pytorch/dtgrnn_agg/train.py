@@ -52,22 +52,22 @@ def train(model, graph, dataloader, optimizer, scheduler, normalizer, loss_fn, d
         y = y.permute(1, 0, 2, 3)
         # after: [seq_len, batch_size, num_nodes, in_feats]
 
-        print("Before replication: x.shape is", x.shape)
+        # print("Before replication: x.shape is", x.shape)
 
         # replicate feats / nodes, if applicable
         if args.in_feats > 2:
             x_ = tuple(x for _ in range(int(args.in_feats / x.shape[3])))
-            x = torch.cat(x_, 3)
+            x = torch.cat(x_, dim=3)
             y_ = tuple(y for _ in range(int(args.in_feats / y.shape[3])))
-            y = torch.cat(y_, 3)
+            y = torch.cat(y_, dim=3)
 
         if args.replicate_nodes > 1:
             x_ = tuple(x for _ in range(args.replicate_nodes))
-            x = torch.cat(x_, 2)
+            x = torch.cat(x_, dim=2)
             y_ = tuple(y for _ in range(args.replicate_nodes))
-            y = torch.cat(y_, 2)
+            y = torch.cat(y_, dim=2)
 
-        print("After replication: x.shape is", x.shape)
+        # print("After replication: x.shape is", x.shape)
 
         x_norm = normalizer.normalize(x).reshape(
             x.shape[0], -1, x.shape[3]).float().to(device)
