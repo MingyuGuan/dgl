@@ -37,4 +37,5 @@ class SageConv(nn.Module):
                 agg = g.ndata['h_N']
 
         h_total = torch.cat([h, agg], dim=1)
+        print("h_total shape:", h_total.shape)
         return self.linear(h_total)
