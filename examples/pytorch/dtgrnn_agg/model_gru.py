@@ -116,7 +116,7 @@ class StackedEncoder(nn.Module):
                 g.update_all(message_func=fn.copy_u('x', 'm'), reduce_func=fn.mean('m', 'h_N'))
                 x_agg = g.ndata['h_N']
 
-            x_aggs = torch.tensor_split(x_agg, self.seq_len, dim=-1)
+            x_aggs = torch.split(x_agg, self.seq_len, dim=-1)
 
         for i in range(self.seq_len):
             input_ = x[i]
@@ -128,7 +128,7 @@ class StackedEncoder(nn.Module):
             for j, layer in enumerate(self.layers):
                 input_ = layer(g, input_, hidden_states[j], x_agg=x_agg)
                 hiddens.append(input_)
-                x_agg = None
+                x_agg = None # merging time steps can only be applied to first layer
             hidden_states = hiddens
         return x, hidden_states
 
@@ -186,7 +186,7 @@ class StackedDecoder(nn.Module):
                 g.update_all(message_func=fn.copy_u('x', 'm'), reduce_func=fn.mean('m', 'h_N'))
                 x_agg = g.ndata['h_N']
 
-            x_aggs = torch.tensor_split(x_agg, self.seq_len, dim=-1)
+            x_aggs = torch.split(x_agg, self.seq_len, dim=-1)
 
         outputs = []
         for i in range(self.seq_len):
