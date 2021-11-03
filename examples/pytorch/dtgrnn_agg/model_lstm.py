@@ -144,15 +144,14 @@ class StackedEncoder(nn.Module):
                 g.ndata['x'] = x_cat
                 # update_all is a message passing API.
                 g.update_all(message_func=fn.copy_u('x', 'm'), reduce_func=fn.mean('m', 'h_N'))
-                x_aggs = g.ndata['h_N']
+                x_agg = g.ndata['h_N']
 
-            # x_aggs = torch.chunk(x_agg, chunks=self.seq_len, dim=-1)
+            x_aggs = torch.chunk(x_agg, chunks=self.seq_len, dim=-1)
 
         for i in range(self.seq_len):
             input_ = x[i]
             if self.merge_time_steps:
-                # x_agg = x_aggs[i]
-                x_agg = x_aggs[..., i*self.in_feats:(i+1)*self.in_feats]
+                x_agg = x_aggs[i]
             else:
                 x_agg = None
             hiddens = []
@@ -218,16 +217,15 @@ class StackedDecoder(nn.Module):
                 g.ndata['x'] = x_cat
                 # update_all is a message passing API.
                 g.update_all(message_func=fn.copy_u('x', 'm'), reduce_func=fn.mean('m', 'h_N'))
-                x_aggs = g.ndata['h_N']
+                x_agg = g.ndata['h_N']
 
-            # x_aggs = torch.chunk(x_agg, self.seq_len, dim=-1)
+            x_aggs = torch.chunk(x_agg, self.seq_len, dim=-1)
 
         outputs = []
         for i in range(self.seq_len):
             input_ = x[i]
             if self.merge_time_steps:
-                # x_agg = x_aggs[i]
-                x_agg = x_aggs[..., i*self.in_feats:(i+1)*self.in_feats]
+                x_agg = x_aggs[i]
             else:
                 x_agg = None
             hiddens = []
