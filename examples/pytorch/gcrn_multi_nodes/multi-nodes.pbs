@@ -1,0 +1,29 @@
+#PBS -N gru-gcn-la-feat2-layer2
+#PBS -A GT-tkim92
+#PBS -q embers
+#PBS -l nodes=2:ppn=4:gpus=2
+#PBS -j oe
+#PBS -o multi-node.out
+#PBS -m abe
+#PBS -M mingyu.guan@gatech.edu
+
+cd $PBS_O_WORKDIR
+echo $PBS_O_WORKDIR
+
+module load anaconda3/2021.05
+conda activate gnn
+
+MASTER=`/bin/hostname -s`
+cat $PBS_NODEFILE>nodelist
+SLAVES=`cat nodelist | grep -v $MASTER | uniq`
+
+HOSTLIST="$MASTER $SLAVES"
+
+MPORT=1234
+
+RANK=0
+for node in $HOSTLIST; do
+        ssh -q $node ~/.conda/envs/gnn/bin/python -m torch.distributed.launch --nproc_per_node=1 --nnodes=2 --node_rank=$RANK --master_addr="$MASTER" --master_port=1234 $PBS_O_WORKDIR/train.py --gpu 0 --dataset LA --model gcn --rnn gru --num-layers 2 --workspace "$PBS_O_WORKDIR" &
+        RANK=$((RANK+1))
+done
+wait
