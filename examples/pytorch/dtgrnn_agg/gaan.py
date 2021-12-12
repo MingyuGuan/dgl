@@ -129,14 +129,16 @@ class GatedGAT(nn.Module):
                 g.ndata['z'] = self.gate_m(x)
                 g.update_all(fn.copy_u('x', 'x'), fn.mean('x', 'mean_z'))
                 g.update_all(fn.copy_u('z', 'z'), fn.max('z', 'max_z'))
+                nft = torch.cat([g.ndata['x'], g.ndata['max_z'],
+                                 g.ndata['mean_z']], dim=1)
         else:
             with g.local_scope():
                 g.ndata['x'] = x
                 g.ndata['mean_z'] = agg
                 g.ndata['max_z'] = self.gate_m(agg)
-        
-        nft = torch.cat([g.ndata['x'], g.ndata['max_z'],
-                         g.ndata['mean_z']], dim=1)
+                nft = torch.cat([g.ndata['x'], g.ndata['max_z'],
+                                 g.ndata['mean_z']], dim=1)
+
         gate = self.gate_fn(nft).sigmoid()
         attn_out = self.gatlayer(g, x)
         node_num = g.num_nodes()
