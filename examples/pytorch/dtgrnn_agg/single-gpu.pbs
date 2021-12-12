@@ -1,0 +1,15 @@
+#PBS -N lstm-bay-opt         
+#PBS -A GT-tkim92              
+#PBS -q embers
+#PBS -l nodes=1:ppn=12:gpus=1                   
+#PBS -j oe                    
+#PBS -o lstm-bay-opt.out      
+#PBS -m abe                 
+#PBS -M mingyu.guan@gatech.edu 
+
+cd $PBS_O_WORKDIR
+
+module load anaconda3/2021.05
+conda activate gnn
+
+python train.py --gpu 0 --dataset BAY --model sage --rnn lstm --num-layers 2 --merge-time-steps --reuse-msg-passing

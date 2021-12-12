@@ -163,7 +163,7 @@ if __name__ == "__main__":
                         help="Lower bound of learning rate")
     parser.add_argument('--dataset', type=str, default='LA',
                         help="dataset LA for METR_LA; BAY for PEMS_BAY")
-    parser.add_argument('--epochs', type=int, default=100,
+    parser.add_argument('--epochs', type=int, default=5,
                         help="Number of epoches for training")
     parser.add_argument('--max_grad_norm', type=float, default=5.0,
                         help="Maximum gradient norm for update parameters")
