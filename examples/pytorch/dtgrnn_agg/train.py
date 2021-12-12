@@ -13,7 +13,6 @@ from model_lstm import GraphLSTM
 
 from sage_conv import SageConv
 from gcn_layer import GCNLayer
-from dcrnn import DiffConv
 from gaan import GatedGAT
 
 from dataloading import METR_LAGraphDataset, METR_LATrainDataset,\
