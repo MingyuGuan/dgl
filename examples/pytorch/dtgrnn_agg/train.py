@@ -6,13 +6,16 @@ import torch.nn as nn
 from torch.utils.data import DataLoader
 
 import dgl
-# from model import GraphRNN
-# from dcrnn import DiffConv
-# from dcrnn import DiffConvAgg
-# from gaan import GatedGAT
+
+from model_gaan import GraphRNN
 from model_gru import GraphGRU
 from model_lstm import GraphLSTM
+
 from sage_conv import SageConv
+from gcn_layer import GCNLayer
+from dcrnn import DiffConv
+from gaan import GatedGAT
+
 from dataloading import METR_LAGraphDataset, METR_LATrainDataset,\
     METR_LATestDataset, METR_LAValidDataset,\
     PEMS_BAYGraphDataset, PEMS_BAYTrainDataset,\
@@ -176,10 +179,15 @@ if __name__ == "__main__":
                         help="Number of layers of the encoder/decoder")
     parser.add_argument('--rnn', type=str, default='gru',
                         help="rnn model: gru or lstm")
+
+    # optimizations
     parser.add_argument('--merge-time-steps', action='store_true',
                         help="enable optimization of merging time steps")
     parser.add_argument('--reuse-msg-passing', action='store_true',
                         help="enable optimization of resusing message passing")
+    parser.add_argument('--decoder-reuse-encoder', action='store_true',
+                        help="enable optimization of resusing msg passing results from encoder")
+
 
     args = parser.parse_args()
     # Load the datasets
@@ -210,16 +218,17 @@ if __name__ == "__main__":
         test_data, batch_size=args.batch_size, num_workers=args.num_workers, shuffle=True)
     normalizer = NormalizationLayer(train_data.mean, train_data.std)
 
-    # if args.model == 'dcrnn':
-    #     batch_g = dgl.batch([g]*args.batch_size).to(device)
-    #     out_gs, in_gs = DiffConv.attach_graph(batch_g, args.diffsteps)
-    #     net = partial(DiffConv, k=args.diffsteps,
-    #                   in_graph_list=in_gs, out_graph_list=out_gs)
-    # elif args.model == 'gaan':
-    #     net = partial(GatedGAT, map_feats=64, num_heads=args.num_heads)
-
-    if args.model == 'sage':
+    if args.model == 'dcrnn':
+        batch_g = dgl.batch([g]*args.batch_size).to(device)
+        out_gs, in_gs = DiffConv.attach_graph(batch_g, args.diffsteps)
+        net = partial(DiffConv, k=args.diffsteps,
+                      in_graph_list=in_gs, out_graph_list=out_gs)
+    elif args.model == 'gaan':
+        net = partial(GatedGAT, map_feats=64, num_heads=args.num_heads)
+    elif args.model == 'sage':
         net = SageConv
+    elif args.model == 'gcn':
+        net = GCNLayer
 
     if args.rnn == 'gru':
         graph_rnn = GraphGRU(in_feats=args.in_feats,
@@ -238,6 +247,14 @@ if __name__ == "__main__":
                          net=net,
                          decay_steps=args.decay_steps,
                          merge_time_steps=args.merge_time_steps,
+                         reuse_msg_passing=args.reuse_msg_passing).to(device)
+    elif args.rnn == 'gaan':
+        graph_rnn = GraphRNN(in_feats=args.in_feats,
+                         out_feats=64,
+                         seq_len=12,
+                         num_layers=args.num_layers,
+                         net=net,
+                         decay_steps=args.decay_steps,
                          reuse_msg_passing=args.reuse_msg_passing).to(device)
 
     optimizer = torch.optim.Adam(graph_rnn.parameters(), lr=args.lr)

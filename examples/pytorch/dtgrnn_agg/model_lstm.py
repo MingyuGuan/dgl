@@ -60,7 +60,7 @@ class GraphLSTMCell(nn.Module):
             with g.local_scope():
                 g.ndata['x'] = h
                 # update_all is a message passing API.
-                g.update_all(message_func=fn.copy_u('x', 'm'), reduce_func=fn.mean('m', 'h_N'))
+                g.update_all(message_func=fn.copy_u('x', 'm'), reduce_func=fn.sum('m', 'h_N'))
                 h_agg = g.ndata['h_N']
 
             # even merge these two?
@@ -69,7 +69,7 @@ class GraphLSTMCell(nn.Module):
                 with g.local_scope():
                     g.ndata['x'] = x
                     # update_all is a message passing API.
-                    g.update_all(message_func=fn.copy_u('x', 'm'), reduce_func=fn.mean('m', 'h_N'))
+                    g.update_all(message_func=fn.copy_u('x', 'm'), reduce_func=fn.sum('m', 'h_N'))
                     x_agg = g.ndata['h_N']
 
         i = torch.sigmoid(
@@ -143,7 +143,7 @@ class StackedEncoder(nn.Module):
             with g.local_scope():
                 g.ndata['x'] = x_cat
                 # update_all is a message passing API.
-                g.update_all(message_func=fn.copy_u('x', 'm'), reduce_func=fn.mean('m', 'h_N'))
+                g.update_all(message_func=fn.copy_u('x', 'm'), reduce_func=fn.sum('m', 'h_N'))
                 x_agg = g.ndata['h_N']
 
             x_aggs = torch.chunk(x_agg, chunks=self.seq_len, dim=-1)
@@ -216,7 +216,7 @@ class StackedDecoder(nn.Module):
             with g.local_scope():
                 g.ndata['x'] = x_cat
                 # update_all is a message passing API.
-                g.update_all(message_func=fn.copy_u('x', 'm'), reduce_func=fn.mean('m', 'h_N'))
+                g.update_all(message_func=fn.copy_u('x', 'm'), reduce_func=fn.sum('m', 'h_N'))
                 x_agg = g.ndata['h_N']
 
             x_aggs = torch.chunk(x_agg, self.seq_len, dim=-1)

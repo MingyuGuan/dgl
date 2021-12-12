@@ -122,19 +122,26 @@ class GatedGAT(nn.Module):
         self.merger_layer = nn.Linear(
             self.in_feats+self.out_feats, self.out_feats)
 
-    def forward(self, g, x):
-        with g.local_scope():
-            g.ndata['x'] = x
-            g.ndata['z'] = self.gate_m(x)
-            g.update_all(fn.copy_u('x', 'x'), fn.mean('x', 'mean_z'))
-            g.update_all(fn.copy_u('z', 'z'), fn.max('z', 'max_z'))
-            nft = torch.cat([g.ndata['x'], g.ndata['max_z'],
-                             g.ndata['mean_z']], dim=1)
-            gate = self.gate_fn(nft).sigmoid()
-            attn_out = self.gatlayer(g, x)
-            node_num = g.num_nodes()
-            gated_out = ((gate.view(-1)*attn_out.view(-1, self.out_feats).T).T).view(
-                node_num, self.num_heads, self.out_feats)
-            gated_out = gated_out.mean(1)
-            merge = self.merger_layer(torch.cat([x, gated_out], dim=1))
-            return merge
+    def forward(self, g, x, agg=None):
+        if agg is None:
+            with g.local_scope():
+                g.ndata['x'] = x
+                g.ndata['z'] = self.gate_m(x)
+                g.update_all(fn.copy_u('x', 'x'), fn.mean('x', 'mean_z'))
+                g.update_all(fn.copy_u('z', 'z'), fn.max('z', 'max_z'))
+        else:
+            with g.local_scope():
+                g.ndata['x'] = x
+                g.ndata['mean_z'] = agg
+                g.ndata['max_z'] = self.gate_m(agg)
+        
+        nft = torch.cat([g.ndata['x'], g.ndata['max_z'],
+                         g.ndata['mean_z']], dim=1)
+        gate = self.gate_fn(nft).sigmoid()
+        attn_out = self.gatlayer(g, x)
+        node_num = g.num_nodes()
+        gated_out = ((gate.view(-1)*attn_out.view(-1, self.out_feats).T).T).view(
+            node_num, self.num_heads, self.out_feats)
+        gated_out = gated_out.mean(1)
+        merge = self.merger_layer(torch.cat([x, gated_out], dim=1))
+        return merge
