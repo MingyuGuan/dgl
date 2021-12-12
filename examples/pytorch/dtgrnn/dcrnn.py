@@ -34,13 +34,13 @@ class DiffConv(nn.Module):
         self.dir = dir
         self.num_graphs = self.k-1 if self.dir == 'both' else 2*self.k-2
         self.merger = nn.Parameter(torch.randn(self.num_graphs+1))
+        self.in_feats = in_feats
+        self.out_feats = out_feats
+        self.project_fcs = nn.ModuleList()
+        for i in range(self.num_graphs):
+            self.project_fcs.append(
+                nn.Linear(self.in_feats, self.out_feats, bias=False))
         if not self.aggregate:
-            self.in_feats = in_feats
-            self.out_feats = out_feats
-            self.project_fcs = nn.ModuleList()
-            for i in range(self.num_graphs):
-                self.project_fcs.append(
-                    nn.Linear(self.in_feats, self.out_feats, bias=False))
             self.in_graph_list = in_graph_list
             self.out_graph_list = out_graph_list
 
