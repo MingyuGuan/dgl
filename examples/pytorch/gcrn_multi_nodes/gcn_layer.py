@@ -16,4 +16,4 @@ class GCNLayer(nn.Module):
                 g.update_all(message_func=fn.copy_u('h', 'm'), reduce_func=fn.sum('m', 'h_N'))
                 agg = g.ndata['h_N']
         
-        return self.linear(h)
+        return self.linear(agg)

@@ -33,6 +33,8 @@ def train(model, graph, dataloader, optimizer, scheduler, normalizer, loss_fn, d
     graph = graph.to(device)
     model.train()
     batch_size = args.batch_size
+    total_batch = 0
+    start = time.time()
     for i, (x, y) in enumerate(dataloader):
         optimizer.zero_grad()
         # Padding: Since the diffusion graph is precmputed we need to pad the batch so that
@@ -89,6 +91,11 @@ def train(model, graph, dataloader, optimizer, scheduler, normalizer, loss_fn, d
             scheduler.step()
         total_loss.append(float(loss))
         batch_cnt[0] += 1
+        total_batch = i
+    end = time.time()
+    snapshot_cnt = (total_batch + 1) * batch_size * 12
+    throughput = snapshot_cnt / (end - start)
+    print("Training throughput:", throughput, "snapshot/sec") 
     return np.mean(total_loss)
 
 
@@ -154,12 +161,7 @@ def spmd_main(local_rank, g, train_data, val_data, test_data, args, seed=0):
         key: os.environ[key]
         for key in ("MASTER_ADDR", "MASTER_PORT", "RANK", "WORLD_SIZE")
     }
-    print(f"[{os.getpid()}] Initializing process group with: {env_dict}")
     dist.init_process_group(backend="nccl")
-    print(
-        f"[{os.getpid()}] world_size = {dist.get_world_size()}, "
-        + f"rank = {dist.get_rank()}, backend={dist.get_backend()}"
-    )
 
     import socket
     hostname = socket.gethostname()
@@ -168,6 +170,8 @@ def spmd_main(local_rank, g, train_data, val_data, test_data, args, seed=0):
 
     device = local_rank
     torch.cuda.set_device(device)
+    
+    print("CUDA device:", torch.cuda.get_device_name(device))
     
     train_sampler = torch.utils.data.distributed.DistributedSampler(train_data)
 
@@ -185,7 +189,7 @@ def spmd_main(local_rank, g, train_data, val_data, test_data, args, seed=0):
     
     if args.model == 'sage':
         net = SageConv
-    elif args.model = 'gcn':
+    elif args.model == 'gcn':
         net = GCNLayer
 
     if args.rnn == 'gru':
@@ -215,6 +219,7 @@ def spmd_main(local_rank, g, train_data, val_data, test_data, args, seed=0):
     loss_fn = masked_mae_loss
 
     for e in range(args.epochs):
+        train_sampler.set_epoch(e)
         start = time.time()
         train_loss = train(graph_rnn, g, train_loader, optimizer, scheduler,
                            normalizer, loss_fn, device, args)
@@ -223,7 +228,7 @@ def spmd_main(local_rank, g, train_data, val_data, test_data, args, seed=0):
         test_loss = eval(graph_rnn, g, test_loader,
                          normalizer, loss_fn, device, args)
         end = time.time()
-        print("[{}:device{}]Epoch {}: {} Time: {} Train Loss: {} Valid Loss: {} Test Loss: {}".format(hostname, device, e,
+        print("Epoch {}: Time: {} Train Loss: {} Valid Loss: {} Test Loss: {}".format(e,
                                                                              end-start,
                                                                              train_loss,
                                                                              valid_loss,
@@ -253,7 +258,7 @@ if __name__ == "__main__":
                         help="Lower bound of learning rate")
     parser.add_argument('--dataset', type=str, default='LA',
                         help="dataset LA for METR_LA; BAY for PEMS_BAY")
-    parser.add_argument('--epochs', type=int, default=5,
+    parser.add_argument('--epochs', type=int, default=10,
                         help="Number of epoches for training")
     parser.add_argument('--max_grad_norm', type=float, default=5.0,
                         help="Maximum gradient norm for update parameters")
