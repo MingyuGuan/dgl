@@ -87,9 +87,9 @@ class DiffConv(nn.Module):
             device)
         return ret_graph
 
-    def forward(self, g, x, feat_list=None):
+    def forward(self, g, x, agg_feats=None):
+        feat_list = []
         if not self.aggregate:
-            feat_list = []
             if self.dir == 'both':
                 graph_list = self.in_graph_list+self.out_graph_list
             elif self.dir == 'in':
@@ -107,7 +107,7 @@ class DiffConv(nn.Module):
                     # Each feat has shape [N,q_feats]
         else:
             for i in range(self.num_graphs):
-                feat_list[i] = self.project_fcs[i](feat_list[i])
+                feat_list[i].append(self.project_fcs[i](agg_feats[i]))
 
         feat_list.append(self.project_fcs[-1](x))
         feat_list = torch.cat(feat_list).view(
@@ -146,7 +146,6 @@ class DiffConvAgg(nn.Module):
                 g.ndata['n'] = x
                 g.update_all(fn.u_mul_e('n', 'weight', 'e'),
                              fn.sum('e', 'feat'))
-                print("Shape of feat:",g.ndata['feat'].size())
                 feat_list.append(g.ndata['feat'])
                 # Each feat has shape [N,q_feats]
         # feat_list.append(self.project_fcs[-1](x))
