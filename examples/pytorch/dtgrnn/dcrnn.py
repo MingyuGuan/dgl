@@ -146,6 +146,7 @@ class DiffConvAgg(nn.Module):
                 g.ndata['n'] = x
                 g.update_all(fn.u_mul_e('n', 'weight', 'e'),
                              fn.sum('e', 'feat'))
+                print("Shape of feat:",g.ndata['feat'].size())
                 feat_list.append(g.ndata['feat'])
                 # Each feat has shape [N,q_feats]
         # feat_list.append(self.project_fcs[-1](x))
