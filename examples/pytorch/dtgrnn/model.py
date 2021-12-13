@@ -48,9 +48,9 @@ class GraphGRUCell(nn.Module):
         if self.aggregate:
             feats = self.agg_net(g, torch.cat([x, h], dim=1))
             r = torch.sigmoid(self.r_net(
-                g, None, feats) + self.r_bias)
+                g, torch.cat([x, h], dim=1), feats) + self.r_bias)
             u = torch.sigmoid(self.u_net(
-                g, None, feats) + self.u_bias)
+                g, torch.cat([x, h], dim=1), feats) + self.u_bias)
         else: 
             r = torch.sigmoid(self.r_net(
                 g, torch.cat([x, h], dim=1)) + self.r_bias)
