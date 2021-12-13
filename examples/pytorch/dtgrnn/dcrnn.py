@@ -107,7 +107,7 @@ class DiffConv(nn.Module):
                     # Each feat has shape [N,q_feats]
         else:
             for i in range(self.num_graphs):
-                feat_list[i].append(self.project_fcs[i](agg_feats[i]))
+                feat_list.append(self.project_fcs[i](agg_feats[i]))
 
         feat_list.append(self.project_fcs[-1](x))
         feat_list = torch.cat(feat_list).view(
